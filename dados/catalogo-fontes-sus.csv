@@ -1,0 +1,5 @@
+tema,sistema_fonte,evento_unidade,responsavel_disseminacao,status_editorial
+Assistencia ambulatorial,SIA,procedimento_autorizacao,DEMAS_SEIDIGI_MS,estrutura
+Assistencia hospitalar,SIH,internacao_AIH,DEMAS_SEIDIGI_MS,estrutura
+Mortalidade,SIM,obito,DEMAS_SEIDIGI_MS,estrutura
+
