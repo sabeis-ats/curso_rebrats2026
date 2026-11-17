@@ -9,6 +9,8 @@ Livro online sobre sistemas de informação, fontes de dados do SUS, ferramentas
 - 7 apêndices;
 - aula ReBrATS 2026 com credenciais públicas, comandos e resultados observados em 2025;
 - incorporação integral dos oito materiais RPubs indicados;
+- capítulos completos de arquitetura, instalação e uso do Navegador de Dados do SUS;
+- código-fonte da versão 14 do Navegador, com soma SHA-256 e resultados de demonstração;
 - referências BibTeX do portfólio de Felipe Ferré.
 
 ## Convenções
@@ -33,5 +35,5 @@ A saída será gravada em `_book/`.
 
 ## Estado editorial
 
-A estrutura navegável está completa. O núcleo metodológico está preenchido; os demais capítulos possuem objetivos, seções e tarefas da próxima iteração.
+A estrutura navegável está completa. O núcleo metodológico e os capítulos do Navegador estão preenchidos; os demais capítulos possuem objetivos, seções e tarefas da próxima iteração.
 
