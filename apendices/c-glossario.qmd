@@ -1,0 +1,9 @@
+# Glossário de informática em saúde
+
+- **Sistema de saúde:** organização de instituições, pessoas, recursos e ações voltadas à saúde.
+- **Sistema de informação:** arranjo que coleta, processa, armazena e dissemina dados para uma finalidade.
+- **Competência:** período administrativo de referência do registro.
+- **Unidade de análise:** entidade representada por cada linha ou agrupamento analítico.
+- **ETL:** extração, transformação e carga.
+- **Parquet:** formato colunar para armazenamento analítico.
+

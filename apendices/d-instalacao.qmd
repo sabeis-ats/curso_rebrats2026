@@ -1,0 +1,19 @@
+# Instalação do ambiente
+
+## Quarto
+
+```bash
+quarto check
+quarto preview
+```
+
+## R
+
+```r
+install.packages(c("curl", "data.table", "duckdb", "arrow", "DBI"))
+```
+
+## PostgreSQL, Bash e Wine
+
+As versões, pacotes de sistema e testes de instalação serão validados em ambiente Linux de referência.
+

@@ -1,0 +1,4 @@
+# Inventário completo do SINAN
+
+Estrutura reservada para o inventário por agravo, período, situação de encerramento, layout e documentação.
+

@@ -1,0 +1,11 @@
+# Checklist de qualidade e reprodutibilidade
+
+- [ ] origem e URL registradas;
+- [ ] competência e data de extração registradas;
+- [ ] bytes e contagem de registros verificados;
+- [ ] codificação e tipos documentados;
+- [ ] chaves e cardinalidade testadas;
+- [ ] agregados reconciliados com marcador oficial;
+- [ ] logs e versões preservados;
+- [ ] limitações e exclusões descritas.
+

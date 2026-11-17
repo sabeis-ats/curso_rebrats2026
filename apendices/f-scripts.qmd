@@ -1,0 +1,4 @@
+# Consultas SQL e scripts Bash, R e Python
+
+Este apêndice reunirá versões executáveis e testadas dos comandos apresentados nos capítulos, com parâmetros de entrada, saída esperada e códigos de retorno.
+

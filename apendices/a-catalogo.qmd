@@ -1,0 +1,12 @@
+# Catálogo de sistemas de informação, fontes e arquivos
+
+| Tema | Sistema ou fonte | Evento/unidade | Canal a documentar |
+|---|---|---|---|
+| Assistência ambulatorial | SIA | procedimento/autorização | DEMAS/SEIDIGI/MS |
+| Assistência hospitalar | SIH | internação/AIH | DEMAS/SEIDIGI/MS |
+| Mortalidade | SIM | óbito | DEMAS/SEIDIGI/MS |
+| Nascimentos | SINASC | nascido vivo | DEMAS/SEIDIGI/MS |
+| Agravos | SINAN | notificação/caso | DEMAS/SEIDIGI/MS |
+
+Este catálogo será ampliado com periodicidade, cobertura, formato, chaves e documentação técnica.
+

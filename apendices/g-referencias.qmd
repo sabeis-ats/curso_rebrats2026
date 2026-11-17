@@ -1,0 +1,4 @@
+# Mapa de referências e chaves BibTeX
+
+As referências estão centralizadas em `referencias.bib`. Cada capítulo receberá um mapa de evidências com documento, versão, data de acesso e trecho utilizado.
+
