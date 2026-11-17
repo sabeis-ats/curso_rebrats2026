@@ -1,34 +1,355 @@
 # Catálogo e arquitetura do Navegador de Dados do SUS
 
-::: {.callout-note title="Estado editorial"}
-Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
-:::
-
 ## Objetivos
 
-- Descrever arquitetura, fontes e decisões do Navegador de Dados do SUS.
-- Registrar fonte, competência, versão, unidade de análise e limitações.
+Ao final deste capítulo, o leitor deverá ser capaz de:
 
-## Problema atendido
+- explicar a finalidade e a arquitetura da versão 14 do Navegador de Dados do SUS;
+- distinguir catálogo, dicionário, recurso, sistema de informação e fonte de disseminação;
+- localizar, no código-fonte, as rotinas de inventário, classificação, download, leitura e harmonização;
+- compreender como o programa preserva proveniência, rótulos, descrições e sistemas de códigos;
+- reconhecer as salvaguardas de memória, disco e retomada de trabalhos;
+- auditar um resultado a partir da seleção, do registro de execução e dos metadados anexos.
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+## Escopo e terminologia
 
-## Catálogo e componentes
+O Navegador é uma aplicação escrita em R que reúne quatro funções: descobre recursos em diferentes fontes públicas; organiza esses recursos em um catálogo comum; permite selecionar e processar arquivos por terminal ou interface Shiny; e entrega tabelas acompanhadas de proveniência e documentação.
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+O SUS é um **sistema de saúde**. SIA, SIH, SIM, SINASC, SINAN e outros conjuntos tratados pelo Navegador são **sistemas de informação**, cadastros, tabelas ou bases administrativas. Os dados federais do SUS são disseminados pelo **DEMAS/SEIDIGI/MS**. Endereços com o domínio histórico `datasus.gov.br` continuam aparecendo porque são os servidores técnicos usados para a disseminação dos arquivos.
 
-## Fluxo de navegação e atualização
+::: {.callout-important title="Nomes legados no código"}
+Os identificadores `FTP_DATASUS`, `datasus_dataset`, `datasus_dictionary` e semelhantes são nomes internos da versão 14. Eles são reproduzidos neste capítulo para que o código possa ser localizado e executado sem alteração. Esses identificadores não mudam a atribuição institucional adotada no livro: DEMAS/SEIDIGI/MS.
+:::
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+## Material incorporado
 
-## Material pendente
+O pacote analisado e incorporado ao livro é [`rshiny_ftpsus_navegador.zip`](../software/rshiny_ftpsus_navegador.zip), versão 14.
 
-O conteúdo será completado após a incorporação do ZIP do Navegador de Dados do SUS ao repositório. A estrutura já reserva arquitetura, instalação, atualização e exercícios.
+| Propriedade | Valor |
+|---|---|
+| Arquivo | `rshiny_ftpsus_navegador.zip` |
+| Versão declarada | 14 |
+| Tamanho | 9.666.570 bytes |
+| SHA-256 | `a9710263a7a5286b9f0067b504bc35f4e19cd38ff2569b20d49564854aff3068` |
+| Data de modificação do arquivo de origem | 20 de agosto de 2026 |
+| Interfaces | terminal e Shiny |
+| Linguagem | R |
 
-## Próxima iteração
+O pacote contém o código-fonte, o catálogo e os dicionários em RDS, arquivos de configuração e dois trabalhos concluídos usados nos exemplos deste capítulo e do próximo.
 
-- confirmar documentos normativos e layouts vigentes;
-- executar exemplos com uma competência de referência;
-- acrescentar controles de qualidade e exercícios;
-- revisar remissões, glossário e referências.
+## Estrutura do código-fonte
 
+```text
+ftpsus_navegador/
+├── app.R
+├── atualizar_catalogo.R
+├── instalar_dependencias.R
+├── navegar_terminal.R
+├── VERSAO
+├── config/
+│   ├── code_system_overrides.csv
+│   ├── fontes_economia_saude.txt
+│   └── sigtap_layout_source.txt
+├── dados_catalogo_ftp/
+│   ├── catalogo_ftp_atual.rds
+│   ├── dicionarios.rds
+│   └── historico_versionamento.rds
+├── data/jobs/
+└── R/
+    ├── catalogos_abertos.R
+    ├── core.R
+    ├── download.R
+    ├── economia_saude.R
+    ├── ftp_catalog.R
+    ├── sigtap.R
+    ├── terminal.R
+    └── worker.R
+```
+
+Os quatro arquivos da raiz são pontos de entrada. Os arquivos de `R/` implementam as funções. A separação reduz a duplicação: terminal e Shiny usam o mesmo catálogo e as mesmas rotinas de processamento.
+
+| Arquivo | Responsabilidade principal |
+|---|---|
+| `app.R` | interface Shiny, filtros, seleção, acompanhamento e downloads |
+| `atualizar_catalogo.R` | reconstrução do catálogo multifonte |
+| `navegar_terminal.R` | inicialização da interface de linha de comando |
+| `instalar_dependencias.R` | instalação dos pacotes necessários |
+| `R/core.R` | dicionários, normalização, metadados e *code systems* |
+| `R/ftp_catalog.R` | listagem FTP, interpretação de nomes e versionamento do catálogo |
+| `R/catalogos_abertos.R` | CKAN do Portal de Dados Abertos do SUS e índice público da Anvisa |
+| `R/economia_saude.R` | BPS, CMED, OBM, RENAME e vínculos candidatos ao SIGTAP |
+| `R/sigtap.R` | leitura posicional e consolidação dos pacotes mensais do SIGTAP |
+| `R/download.R` | cache, leitura, concatenação, complementação SIA–PA e exportação |
+| `R/terminal.R` | perguntas, validações e fluxo interativo no terminal |
+| `R/worker.R` | execução em processo R separado e gravação dos artefatos do trabalho |
+
+## Arquitetura de execução
+
+```{mermaid}
+flowchart TD
+  A["Fontes públicas"] --> B["Catálogo multifonte"]
+  C["Dicionários LabXiabr"] --> B
+  B --> D["Terminal ou Shiny"]
+  D --> E["Worker em processo R"]
+  E --> F["Download e cache"]
+  F --> G["Leitura e harmonização"]
+  G --> H["RDS, CSV.gz ou Parquet"]
+  G --> I["Dicionário, proveniência e log"]
+```
+
+O catálogo é a camada de descoberta. O usuário não precisa montar manualmente cada URL: seleciona linhas do catálogo. Essas linhas são passadas ao processador como uma `data.table`, o que torna a seleção registrável e reproduzível.
+
+## Inicialização da aplicação
+
+O início de `app.R` mostra a composição dos módulos:
+
+```r
+suppressPackageStartupMessages({
+  library(shiny)
+  library(DT)
+  library(data.table)
+})
+source("R/core.R")
+source("R/ftp_catalog.R")
+source("R/download.R")
+source("R/sigtap.R")
+source("R/economia_saude.R")
+source("R/catalogos_abertos.R")
+source("R/worker.R")
+
+dicionarios <- preparar_dicionarios()
+dicionarios <- adicionar_dicionario_sigtap(dicionarios)
+dicionarios <- adicionar_dicionario_economia_saude(dicionarios)
+catalogo <- data.table::as.data.table(
+  readRDS("./dados_catalogo_ftp/catalogo_ftp_atual.rds")
+)
+```
+
+Esse trecho evidencia duas estruturas diferentes:
+
+- `dicionarios`: descreve sistemas, subsistemas, atributos e sistemas de códigos;
+- `catalogo`: descreve arquivos ou recursos disponíveis para seleção.
+
+O programa interrompe a abertura do Shiny quando o catálogo está ausente ou foi produzido por versão anterior. A correção é executar `Rscript atualizar_catalogo.R`.
+
+## Construção dos dicionários
+
+`R/core.R` define três fontes CSV no repositório `LabXiabr/bd_geral`: sistema, subsistema e atributo. `preparar_dicionarios()` lê os arquivos, normaliza os esquemas, valida colunas obrigatórias, cria chaves de `data.table`, extrai sistemas de códigos e grava um cache comprimido.
+
+O objeto resultante possui:
+
+| Elemento | Unidade | Conteúdo |
+|---|---|---|
+| `sistema` | uma linha por sistema de informação ou conjunto | sigla, nome, descrição e URL quando disponível |
+| `subsistema` | uma linha por subsistema e versão | prefixo de arquivo, descrição e localização |
+| `atributo` | uma linha por variável | nome físico, nome padronizado, rótulo e descrição |
+| `code_system` | uma linha por código e valor | enumerações extraídas ou corrigidas manualmente |
+| `metadados` | uma lista | data de criação, URLs e versão do cache |
+
+Os nomes físicos das colunas baixadas são preservados em minúsculas. A padronização é opcional e acrescenta colunas; não remove as originais. Essa decisão reduz a possibilidade de quebrar scripts já existentes.
+
+## Descoberta e classificação dos arquivos FTP
+
+`listar_arquivos_ftp()` usa `curl` para obter a listagem do servidor e seleciona linhas terminadas em `.dbc` ou `.dbf`:
+
+```r
+listar_arquivos_ftp <- function(url, timeout = 120L) {
+  url <- normalizar_url_ftp(url)
+  h <- curl::new_handle(dirlistonly = FALSE, timeout = timeout)
+  txt <- rawToChar(curl::curl_fetch_memory(url, handle = h)$content)
+  linhas <- stringr::str_split(txt, "\\r?\\n")[[1L]]
+  linhas <- linhas[stringr::str_detect(
+    linhas, stringr::regex("\\.(dbc|dbf)$", ignore_case = TRUE)
+  )]
+  nomes <- stringr::str_extract(
+    linhas, "[^[:space:]]+\\.(?:dbc|dbf)$"
+  )
+  bytes <- suppressWarnings(as.numeric(stringr::str_match(
+    linhas,
+    "^[^ ]+\\s+\\d+\\s+\\S+\\s+\\S+\\s+(\\d+)"
+  )[, 2L]))
+  data.table::data.table(
+    no_dbc_origem = nomes,
+    qt_bytes_ftp = bytes,
+    ds_url = url
+  )
+}
+```
+
+A versão integral também trata falhas sem eliminar as demais fontes.
+
+`extrair_identidade_arquivo()` decompõe o nome em prefixo, UF e competência. A função aceita anos (`AA`), competências (`AAMM`) e datas completas (`AAAAMM`). Para anos com dois algarismos, o corte usado é 79: valores a partir de 79 são interpretados no século XX; os demais, no século XXI.
+
+A classificação não depende apenas de expressão regular. `classificar_por_dicionario()` combina o prefixo com o dicionário de subsistemas e usa a URL como critério de desempate. Pistas inequívocas do caminho — por exemplo, `/SIASUS/`, `/SIHSUS/` e `/CNES/` — são contingências quando o dicionário não resolve a classificação.
+
+## Catálogo multifonte
+
+`atualizar_catalogo_ftp()` reúne quatro famílias de recursos:
+
+| `sg_fonte` no código | Conteúdo | Tratamento |
+|---|---|---|
+| `FTP_DATASUS` | DBC/DBF históricos disseminados pelo DEMAS/SEIDIGI/MS | leitura direta com `read.dbc` ou `foreign` |
+| `FTP_SIGTAP` | pacotes mensais da tabela unificada | leitura posicional dos TXT no ZIP |
+| `DADOS_ABERTOS_SUS` | CKAN e bases do BPS | CSV, JSON, RDS, Parquet e contêineres simples |
+| `ANVISA` | índice público da Agência e listas CMED | recursos tabulares e download bruto |
+
+Cada linha do catálogo identifica fonte, tema, conjunto, recurso, formato, URL, tamanho, competência, UF, sistema de informação ou conjunto, subsistema e possibilidade de processamento tabular. Documentos e formatos não tabulares permanecem disponíveis para download bruto, sem serem concatenados a uma tabela.
+
+O catálogo corrente é gravado em `catalogo_ftp_atual.rds`. A comparação com a versão anterior produz eventos `NOVO`, `MODIFICADO` e `REMOVIDO`, acumulados em `historico_versionamento.rds`. Assim, o catálogo também funciona como inventário temporal da disseminação.
+
+## Portais e fontes abertas
+
+`R/catalogos_abertos.R` implementa duas formas de descoberta:
+
+1. API CKAN do Portal de Dados Abertos do SUS;
+2. índice h5ai usado por `dados.anvisa.gov.br`.
+
+Na fonte CKAN, o código abre uma linha por recurso, preservando identificadores do conjunto e do recurso, tema, formato, URL, tamanho e data de modificação. No índice da Anvisa, extrai arquivos tabulares e documentais expostos publicamente.
+
+O leitor aceita CSV, JSON, XLS/XLSX, RDS e Parquet. ZIP ou GZ são concatenados automaticamente somente quando contêm exatamente um arquivo tabular suportado. Essa restrição evita escolher silenciosamente um item errado dentro de um contêiner.
+
+## Despacho por tipo de recurso
+
+`baixar_e_concatenar()` é o centro do processamento. Antes do fluxo geral de DBC/DBF, a função desvia seleções especializadas:
+
+```r
+if (all(selecao$sg_sistema == "SIGTAP")) {
+  dados <- baixar_consolidar_sigtap(
+    selecao, diretorio, sobrescrever, progresso
+  )
+  return(decorar_dataset(
+    dados, dicionarios, "SIGTAP", "PROCEDIMENTO"
+  ))
+}
+
+if (all(selecao$sg_sistema %in% c("BPS", "CMED"))) {
+  dados <- baixar_consolidar_economia_saude(
+    selecao, diretorio, sobrescrever, progresso
+  )
+}
+
+if (all(selecao$sg_fonte %in% c(
+  "DADOS_ABERTOS_SUS", "ANVISA"
+))) {
+  dados <- baixar_consolidar_recursos_abertos(
+    selecao, diretorio, sobrescrever, progresso
+  )
+}
+```
+
+No fluxo geral, cada arquivo é baixado para um cache plano, lido, normalizado e acrescido das colunas de proveniência `.arquivo_origem`, `.url_origem`, `.sistema`, `.subsistema`, `.competencia`, `.uf_processamento` e `.uf`. A concatenação usa `rbindlist(..., fill = TRUE)`, permitindo a união de competências com esquemas diferentes.
+
+::: {.callout-note title="Leitura de DBC na versão 14"}
+O Navegador lê DBC diretamente com `read.dbc::read.dbc()`. Ele não chama `dbf2dbc.exe`. No método SABEIS documentado neste livro, `dbf2dbc.exe` continua sendo a ferramenta sob Wine que compacta e descompacta, inclusive DBC→DBF. São dois caminhos técnicos válidos, usados em fluxos diferentes.
+:::
+
+## Metadados anexados ao resultado
+
+`decorar_dataset()` acrescenta `label` e `description` às colunas conhecidas. Também anexa ao objeto:
+
+- `datasus_dictionary`: recorte do dicionário aplicável ao resultado;
+- `datasus_code_system`: enumerações e referências aplicáveis;
+- `datasus_files`: linhas do catálogo que originaram os dados;
+- `datasus_files_pa`: arquivos PA usados, quando houve complementação.
+
+As funções de consulta são:
+
+```r
+visao_rotulada(dados)
+dicionario(dados)
+code_systems(dados)
+attr(dados$pa_sexo, "label")
+attr(dados$pa_sexo, "description")
+attr(dados, "datasus_files")
+```
+
+RDS preserva classes e atributos R. Parquet favorece interoperabilidade e leitura seletiva, mas o programa grava um arquivo auxiliar `.metadata.rds` para não perder dicionário, *code systems* e proveniência.
+
+## Complementação dos subsistemas do SIA com PA
+
+Para `ABO`, `AB`, `ACF`, `AD`, `AM`, `AN`, `AQ`, `AR` e `ATD`, o Navegador pode localizar o PA da mesma UF de processamento e competência.
+
+O algoritmo:
+
+1. seleciona todas as partes do PA correspondentes à UF e à competência;
+2. lê o arquivo específico e identifica os procedimentos observados;
+3. filtra cada parte do PA por esses procedimentos;
+4. normaliza a autorização como texto;
+5. exclui chaves nulas, vazias ou formadas apenas por zeros;
+6. concatena as partes do PA;
+7. faz uma única junção, permitindo relações um-para-muitos;
+8. coalesce atributos semanticamente equivalentes pelo nome padronizado.
+
+O arquivo PA precisa ser baixado integralmente porque o servidor não oferece filtro de linhas. O filtro de procedimentos é aplicado imediatamente após a leitura local.
+
+## Consolidação do SIGTAP
+
+`R/sigtap.R` lê os TXT posicionais do pacote mensal. Sempre que disponíveis, as posições vêm dos arquivos `*_layout.txt` contidos no próprio ZIP. As especificações internas são contingência.
+
+A unidade do resultado é **procedimento–competência**. Relações um-para-muitos — modalidades, instrumentos de registro, CBO, CID, serviços, tipos de leito e outras — são agregadas em campos separados por ponto e vírgula para não multiplicar as linhas de procedimentos.
+
+O trabalho de demonstração incluído no pacote processou `TabelaUnificada_202608_v2608141139.zip`, com 2.153.883 bytes, e produziu:
+
+| Indicador | Resultado observado |
+|---|---:|
+| Competência | 202608 |
+| Procedimentos | 5.023 linhas |
+| Variáveis | 97 colunas |
+
+Trecho do resultado empacotado:
+
+| `co_procedimento` | `no_procedimento` | `vl_sa` |
+|---|---|---:|
+| `0101010010` | ATIVIDADE EDUCATIVA / ORIENTAÇÃO EM GRUPO NA ATENÇÃO PRIMÁRIA | 0,00 |
+| `0101010028` | ATIVIDADE EDUCATIVA / ORIENTAÇÃO EM GRUPO NA ATENÇÃO ESPECIALIZADA | 2,70 |
+| `0101010036` | PRÁTICA CORPORAL / ATIVIDADE FÍSICA EM GRUPO | 0,00 |
+
+Os valores `vl_sh`, `vl_sa` e `vl_sp` são convertidos de centavos para reais e marcados com a unidade `BRL`. `co_procedimento` permanece texto com dez posições.
+
+## Trabalhos em segundo plano
+
+Na interface Shiny, o processamento é iniciado por `callr::r_bg()`. O trabalho recebe um identificador no formato `AAAAMMDD_HHMMSS_PID_ALEATORIO`, gravado também na URL como `?job=...`.
+
+Para cada trabalho, `R/worker.R` produz:
+
+| Artefato | Finalidade |
+|---|---|
+| `_selecao.rds` | linhas exatas do catálogo escolhidas pelo usuário |
+| `.log` | sequência temporal de downloads, leituras e erros |
+| `_resultado.rds` | resultado completo |
+| `_resultado.rds.preview.rds` | até 1.000 linhas para a tela |
+| `_resultado.rds.summary.rds` | número de linhas, colunas e visão do dicionário |
+| `_resultado.rds.done` | marcador de conclusão |
+
+Recarregar a URL com o mesmo `job` permite retomar o acompanhamento e baixar o resultado depois de expirar a sessão Shiny.
+
+## Salvaguardas e limites
+
+Antes de processar, o programa soma os tamanhos compactados, estima o volume descompactado como 12 vezes a entrada e compara o resultado com 70% da memória disponível. Também verifica espaço para downloads pendentes e para a saída.
+
+Esses controles bloqueiam seleções incompatíveis com os recursos do servidor. Entretanto, a versão 14 ainda concatena em memória antes de exportar. Escolher Parquet não elimina esse limite. Para centenas de gigabytes compactados, a seleção deve ser dividida por UF e competência ou substituída por um fluxo particionado com Arrow ou DuckDB.
+
+O código de saída `-9` indica `SIGKILL`, normalmente associado a falta de memória ou limite externo. Falta de espaço tende a gerar erro explícito de escrita. A função `diagnosticar_codigo_saida()` relata RAM e espaço livre após o evento.
+
+## Como auditar um resultado
+
+Uma auditoria mínima deve verificar:
+
+```r
+x <- readRDS("data/jobs/ID_resultado.rds")
+
+dim(x)
+attr(x, "datasus_files")
+dicionario(x)
+code_systems(x)
+
+table(x$.arquivo_origem, useNA = "ifany")
+table(x$.competencia, useNA = "ifany")
+table(x$.uf_processamento, useNA = "ifany")
+```
+
+Depois, compare a seleção com o log e com o catálogo vigente na data da execução. O resultado deve ser interpretado segundo o sistema de informação, a unidade de análise, a competência e a cobertura — nunca apenas pelo nome do arquivo.
+
+## Síntese
+
+O Navegador é uma camada de descoberta e execução sobre fontes heterogêneas. Sua contribuição principal não é apenas baixar arquivos: é transformar uma escolha feita em interface em uma seleção explícita, guardar a origem de cada linha, anexar documentação e registrar a execução. O capítulo seguinte apresenta a instalação e os usos guiados.

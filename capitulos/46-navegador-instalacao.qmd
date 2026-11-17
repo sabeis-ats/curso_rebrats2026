@@ -1,38 +1,491 @@
 # Instalação e prática com o Navegador de Dados do SUS
 
-::: {.callout-note title="Estado editorial"}
-Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
-:::
-
 ## Objetivos
 
-- Instalar e usar o Navegador em exercícios guiados.
-- Registrar fonte, competência, versão, unidade de análise e limitações.
+Ao final deste capítulo, o leitor deverá ser capaz de:
+
+- verificar e instalar a versão 14 do Navegador;
+- atualizar o catálogo multifonte;
+- usar a interface de terminal e a interface Shiny;
+- produzir um script R reproduzível a partir de uma seleção;
+- executar exemplos com SIGTAP, BPS e arquivos DBC/DBF;
+- interpretar os resultados e diagnosticar falhas comuns.
+
+## Obtenção e verificação do pacote
+
+O ZIP está incluído no repositório do livro:
+
+```bash
+cd livro-dados-sus/software
+sha256sum -c rshiny_ftpsus_navegador.zip.sha256
+```
+
+Resultado esperado:
+
+```text
+rshiny_ftpsus_navegador.zip: OK
+```
+
+Descompacte em uma pasta de trabalho:
+
+```bash
+mkdir -p "$HOME/aplicativos"
+unzip -q rshiny_ftpsus_navegador.zip -d "$HOME/aplicativos"
+cd "$HOME/aplicativos/ftpsus_navegador"
+cat VERSAO
+```
+
+Resultado esperado:
+
+```text
+14
+```
+
+Os comandos seguintes devem ser executados na raiz `ftpsus_navegador/`. Os caminhos relativos do programa dependem desse diretório.
 
 ## Pré-requisitos
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+São necessários R, acesso às fontes públicas e permissão de escrita no diretório de cache e em `data/jobs/`. O instalador solicita os pacotes:
 
-## Instalação
+```text
+data.table, curl, stringr, foreign, shiny, DT,
+callr, readxl, jsonlite
+```
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+`read.dbc` é obtido de `danicat/read.dbc` quando não está disponível para a versão local do R. `arrow` é opcional e habilita a exportação Parquet.
 
-## Cenários de uso
+Em Debian ou Ubuntu, os pacotes de sistema usuais podem ser preparados com:
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+```bash
+sudo apt update
+sudo apt install -y r-base r-base-dev libcurl4-openssl-dev \
+  libssl-dev libxml2-dev unzip
+```
+
+Esse comando instala dependências gerais. A lista exata pode variar conforme a distribuição e os pacotes R já disponíveis.
+
+## Instalação dos pacotes R
+
+Na raiz do Navegador:
+
+```bash
+Rscript instalar_dependencias.R
+```
+
+Ao final, o instalador informa a versão disponível de `read.dbc` e registra que `arrow` é opcional. Para habilitar Parquet:
+
+```bash
+R -q -e 'install.packages("arrow", repos="https://cloud.r-project.org")'
+```
+
+Verifique as dependências essenciais:
+
+```bash
+R -q -e 'stopifnot(
+  requireNamespace("data.table", quietly=TRUE),
+  requireNamespace("curl", quietly=TRUE),
+  requireNamespace("read.dbc", quietly=TRUE),
+  requireNamespace("shiny", quietly=TRUE),
+  requireNamespace("callr", quietly=TRUE)
+); cat("dependências essenciais: OK\n")'
+```
+
+## Atualização do catálogo
+
+Execute:
+
+```bash
+Rscript atualizar_catalogo.R
+```
+
+O script:
+
+1. atualiza os três dicionários do repositório `LabXiabr/bd_geral`;
+2. lista DBC/DBF nos endereços técnicos da disseminação do DEMAS/SEIDIGI/MS;
+3. lista competências do SIGTAP;
+4. cataloga BPS e CMED;
+5. consulta o catálogo CKAN e o índice público da Anvisa;
+6. compara o inventário com a coleta anterior;
+7. grava o catálogo atual e o histórico.
+
+A última linha tem esta forma:
+
+```text
+Arquivos catalogados: N
+```
+
+`N` varia porque o catálogo é atualizado pelas fontes. O número deve ser tratado como resultado da data de coleta, não como constante do programa.
+
+Confira os artefatos:
+
+```bash
+ls -lh dados_catalogo_ftp/{dicionarios,catalogo_ftp_atual,historico_versionamento}.rds
+```
+
+## Uso pelo terminal
+
+Inicie:
+
+```bash
+Rscript navegar_terminal.R
+```
+
+O fluxo pergunta, em sequência:
+
+1. fonte;
+2. tema, quando disponível;
+3. sistema de informação ou conjunto;
+4. subsistema;
+5. UF de processamento, quando aplicável;
+6. competência inicial e final;
+7. confirmação do conjunto de arquivos;
+8. padronização opcional de atributos;
+9. complementação SIA–PA ou vínculo candidato BPS–SIGTAP, quando aplicável;
+10. diretório de cache;
+11. formato de saída.
+
+A lista numerada funciona tanto em terminal interativo quanto por `Rscript`. Digitar `0` cancela uma escolha. O cache padrão é `~/Downloads/dbc`; arquivos já existentes não são baixados novamente.
+
+## Uso pela interface Shiny
+
+Inicie:
+
+```bash
+R -q -e 'shiny::runApp(".", launch.browser=TRUE)'
+```
+
+Na barra lateral, filtre **Fonte**, **Tema**, **Sistema / catálogo**, **Subsistema**, **UF** e **Competência**. A aba **Arquivos** mostra as linhas do catálogo. É possível selecionar linhas específicas; sem seleção explícita, o botão **Baixar e concatenar** processa todas as linhas filtradas.
+
+As abas têm as seguintes funções:
+
+| Aba | Conteúdo |
+|---|---|
+| Arquivos | recursos filtrados e seleção múltipla |
+| Atributos | dicionário do sistema e subsistema |
+| Code systems | códigos, rótulos e referências classificatórias |
+| Script R | programa reproduzível equivalente à seleção |
+| Resultado | resumo e até 1.000 linhas de pré-visualização |
+
+Durante o processamento, **Execução** mostra o log do processo em segundo plano. Ao concluir, a interface oferece RDS e CSV comprimido; Parquet aparece quando `arrow` está instalado.
+
+::: {.callout-warning title="Execução remota"}
+Se o Shiny estiver em um servidor, `~/Downloads/dbc` é uma pasta do servidor R, não do computador que abriu o navegador. O resultado deve ser transferido pelos botões da interface ou por outro canal autorizado.
+:::
+
+## Exemplo 1 — SIGTAP da competência 202608
+
+### Pela interface
+
+Selecione:
+
+| Filtro | Valor |
+|---|---|
+| Fonte | `FTP_SIGTAP` |
+| Tema | `Procedimentos do SUS` |
+| Sistema / catálogo | `SIGTAP` |
+| Subsistema | `PROCEDIMENTO` |
+| Competência inicial | `202608` |
+| Competência final | `202608` |
+
+O exemplo empacotado na versão 14 selecionou:
+
+```text
+TabelaUnificada_202608_v2608141139.zip
+```
+
+O log registrou o download de 2.153.883 bytes, a leitura de `tb_procedimento`, `tb_descricao`, tabelas de financiamento, grupos, modalidades, instrumentos, CBO, serviço, CID, leitos e relações SIA/SIH.
+
+### Resultado observado
+
+```text
+Linhas: 5023
+Colunas: 97
+Sistema: SIGTAP
+Subsistema: PROCEDIMENTO
+```
+
+Examine o resultado completo:
+
+```r
+sigtap <- readRDS(
+  "data/jobs/20260820_103937_251790_429582_resultado.rds"
+)
+
+dim(sigtap)
+sigtap[
+  , .(
+    co_procedimento,
+    no_procedimento,
+    no_grupo,
+    vl_sh,
+    vl_sa,
+    vl_sp
+  )
+][1:10]
+```
+
+Verifique a unidade procedimento–competência e a unicidade:
+
+```r
+stopifnot(nrow(sigtap) == 5023L)
+stopifnot(data.table::uniqueN(
+  sigtap, by = c("dt_competencia", "co_procedimento")
+) == nrow(sigtap))
+```
+
+Se mais de uma competência for selecionada, o mesmo procedimento poderá aparecer uma vez em cada mês. Isso é necessário para preservar a história de descrições, regras e valores.
+
+## Exemplo 2 — BPS de 2020 a 2026
+
+### Seleção
+
+Na interface, use:
+
+| Filtro | Valor |
+|---|---|
+| Fonte | `DADOS_ABERTOS_SUS` |
+| Tema | `Economia da Saúde` |
+| Sistema / catálogo | `BPS` |
+| Subsistema | `COMPRA_CSV` |
+| Período | 2020 a 2026 |
+
+O trabalho empacotado selecionou sete arquivos, `2020_csv.zip` a `2026_csv.zip`.
+
+### Resultado observado
+
+```text
+Linhas: 342716
+Colunas: 30
+Sistema: BPS
+Subsistema: COMPRA_CSV
+```
+
+As variáveis incluem ano, instituição, esfera, CNPJ, município, UF, CATMAT, descrição, unidade de fornecimento, registro Anvisa, modalidade, fornecedor, fabricante, quantidade, preço unitário e preço total.
+
+Trecho do resultado:
+
+| Ano | CATMAT | Descrição | Registro Anvisa | UF | Preço unitário |
+|---:|---|---|---|---|---:|
+| 2020 | `270019` | GLICONATO DE CÁLCIO, 10%, SOLUÇÃO INJETÁVEL | `1031100350033` | PA | 4,5000 |
+| 2020 | `267567` | CARVEDILOL, 25 MG | `1014600650257` | SP | 0,1550 |
+| 2020 | `271356` | ALPRAZOLAM, 1 MG | `1565100240031` | SP | 0,0990 |
+
+Leitura e controles:
+
+```r
+bps <- readRDS(
+  "data/jobs/20260820_104727_251790_68421_resultado.rds"
+)
+
+dim(bps)
+table(bps$ano_compra, useNA = "ifany")
+summary(bps$preco_unitario)
+
+# CATMAT e registro sanitário devem permanecer como texto.
+stopifnot(is.character(bps$codigo_br))
+stopifnot(is.character(bps$anvisa))
+```
+
+O BPS contém preços informados em compras. Eles não devem ser interpretados como os tetos regulatórios da CMED. A lista CMED exige consideração de PF, PMVG ou PMC, alíquota de ICMS, CAP e regras do produto.
+
+## Exemplo 3 — Consulta seletiva à API do BPS
+
+Para consultar um CATMAT sem baixar o arquivo anual inteiro:
+
+```r
+source("R/core.R")
+source("R/economia_saude.R")
+
+bps_405899 <- consultar_bps_api(
+  codigoCatmat = "405899",
+  anoCompra = 2026
+)
+
+dim(bps_405899)
+bps_405899[1:10]
+```
+
+A API exige `codigoCatmat` ou `cnpjInstituicao`. A função percorre automaticamente as páginas de até 500 registros. O resultado depende do estado da API e da data da consulta; registre a data de extração.
+
+## Exemplo 4 — seleção reproduzível de SIA–PA
+
+O código abaixo escolhe a competência mais recente disponível para PA de Minas Gerais, sem fixar um nome de arquivo que possa mudar:
+
+```r
+source("R/core.R")
+source("R/ftp_catalog.R")
+source("R/download.R")
+source("R/sigtap.R")
+source("R/economia_saude.R")
+source("R/catalogos_abertos.R")
+
+dicionarios <- adicionar_dicionario_economia_saude(
+  adicionar_dicionario_sigtap(preparar_dicionarios())
+)
+
+catalogo <- data.table::as.data.table(readRDS(
+  "dados_catalogo_ftp/catalogo_ftp_atual.rds"
+))
+
+ultima <- catalogo[
+  sg_sistema == "SIA" &
+  sg_subsistema == "PA" &
+  sg_uf == "MG",
+  max(nu_competencia, na.rm = TRUE)
+]
+
+selecao <- catalogo[
+  sg_sistema == "SIA" &
+  sg_subsistema == "PA" &
+  sg_uf == "MG" &
+  nu_competencia == ultima
+]
+
+validar_recursos(selecao, "~/Downloads/dbc")
+
+pa_mg <- baixar_e_concatenar(
+  selecao,
+  dicionarios,
+  diretorio = "~/Downloads/dbc",
+  usar_atributo_padrao = TRUE,
+  catalogo = catalogo
+)
+
+dim(pa_mg)
+table(pa_mg$.arquivo_origem)
+dicionario(pa_mg)
+```
+
+Use `sg_uf` como UF de **processamento**. Não a interprete automaticamente como residência ou local do atendimento; essa interpretação depende das variáveis do sistema de informação.
+
+## Exemplo 5 — complementação SIA–PA
+
+Para um subsistema elegível, o Navegador pode complementar o arquivo específico com PA da mesma UF e competência:
+
+```r
+sub <- "AB"
+
+competencia <- catalogo[
+  sg_sistema == "SIA" &
+  sg_subsistema == sub &
+  sg_uf == "MG",
+  max(nu_competencia, na.rm = TRUE)
+]
+
+selecao_ab <- catalogo[
+  sg_sistema == "SIA" &
+  sg_subsistema == sub &
+  sg_uf == "MG" &
+  nu_competencia == competencia
+]
+
+ab_pa <- baixar_e_concatenar(
+  selecao_ab,
+  dicionarios,
+  diretorio = "~/Downloads/dbc",
+  usar_atributo_padrao = TRUE,
+  complementar_pa = TRUE,
+  catalogo = catalogo
+)
+
+table(ab_pa$.complementado_pa, useNA = "ifany")
+attr(ab_pa, "datasus_files_pa")
+```
+
+Antes da análise, verifique a multiplicidade da autorização. A junção permite relações um-para-muitos; por isso, o número de linhas pode crescer legitimamente.
+
+## Exemplo 6 — script gerado pelo Shiny
+
+A aba **Script R** chama `gerar_script_download()`. O script contém:
+
+- os `source()` necessários;
+- a seleção como `data.table` literal;
+- o diretório de cache;
+- as escolhas de padronização e complementação;
+- a validação de recursos;
+- a chamada a `baixar_e_concatenar()`;
+- a gravação da saída.
+
+Baixe esse script e execute-o na raiz do projeto:
+
+```bash
+Rscript baixar_sia_pa.R 2>&1 | tee baixar_sia_pa.log
+```
+
+Esse é o modo preferencial para transformar uma exploração feita no Shiny em uma rotina repetível e auditável.
+
+## Exportação
+
+No terminal, escolha RDS ou Parquet. Em um script:
+
+```r
+salvar_dataset(dados, "dados_saida/resultado.rds", "rds")
+salvar_dataset(dados, "dados_saida/resultado.parquet", "parquet")
+```
+
+RDS preserva classes e metadados anexados. Parquet favorece interoperabilidade e consulta colunar; o Navegador grava `resultado.parquet.metadata.rds` com dicionário, *code systems* e arquivos de origem.
+
+Na interface Shiny, também é possível baixar CSV comprimido. Use CSV para intercâmbio, não como formato principal de preservação dos metadados R.
 
 ## Diagnóstico de falhas
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+| Sintoma | Causa provável | Ação |
+|---|---|---|
+| `Catálogo de versão anterior` | RDS produzido por código antigo | executar `Rscript atualizar_catalogo.R` |
+| nenhum DBC/DBF encontrado | indisponibilidade ou bloqueio de acesso à fonte | testar a URL com `curl` e repetir a coleta |
+| pacote `read.dbc` ausente | instalação incompleta | executar novamente `Rscript instalar_dependencias.R` |
+| `arrow` ausente | dependência opcional não instalada | instalar `arrow` ou exportar RDS/CSV.gz |
+| seleção não tabular | PDF, XML, dicionário ou contêiner incompatível | selecionar um item e usar **Baixar recurso bruto** |
+| operação bloqueada antes do download | estimativa excede RAM ou disco | dividir por UF/competência e limpar o cache |
+| processo termina com `-9` | `SIGKILL`, geralmente falta de RAM | reduzir a seleção e verificar limites do servidor |
+| tela perde a sessão | expiração do Shiny | reabrir a URL com o mesmo parâmetro `?job=` |
+| resultado tem colunas adicionais | esquemas diferentes foram unidos | usar a proveniência e revisar preenchimento por competência |
+| resultado cresceu após SIA–PA | relação um-para-muitos | auditar autorização e procedimento antes de agregar |
 
-## Material pendente
+## Verificações após cada execução
 
-O conteúdo será completado após a incorporação do ZIP do Navegador de Dados do SUS ao repositório. A estrutura já reserva arquitetura, instalação, atualização e exercícios.
+```r
+stopifnot(nrow(dados) > 0L)
+stopifnot(all(c(
+  ".arquivo_origem",
+  ".url_origem",
+  ".sistema",
+  ".subsistema"
+) %in% names(dados)))
 
-## Próxima iteração
+table(dados$.arquivo_origem, useNA = "ifany")
+table(dados$.competencia, useNA = "ifany")
+attr(dados, "datasus_files")
+```
 
-- confirmar documentos normativos e layouts vigentes;
-- executar exemplos com uma competência de referência;
-- acrescentar controles de qualidade e exercícios;
-- revisar remissões, glossário e referências.
+Para bases de preços, mantenha identificadores como texto e examine valores extremos. Para sistemas de informação assistenciais, verifique unidade de análise, duplicidades esperadas, UF de processamento, competência e chaves de vinculação.
 
+## Operação reprodutível
+
+Uma execução deve guardar, no mínimo:
+
+```bash
+date --iso-8601=seconds > execucao.txt
+cat VERSAO >> execucao.txt
+sha256sum /caminho/para/rshiny_ftpsus_navegador.zip >> execucao.txt
+R --version | head -n 1 >> execucao.txt
+R -q -e 'sessionInfo()' > sessionInfo.txt
+cp data/jobs/ID_selecao.rds auditoria/
+cp data/jobs/ID.log auditoria/
+cp data/jobs/ID_resultado.rds.summary.rds auditoria/
+```
+
+Acrescente ao registro a pergunta analítica, o sistema de informação, a unidade de análise, os filtros e qualquer transformação posterior. A interface facilita o acesso; ela não substitui o delineamento nem a validação epidemiológica, econômica ou administrativa.
+
+## Exercícios
+
+1. Atualize o catálogo e conte recursos por fonte, formato e sistema de informação.
+2. Selecione uma competência do SIGTAP e confirme a unicidade de procedimento–competência.
+3. Compare o dicionário anexado a um resultado SIA com as colunas efetivamente presentes.
+4. Gere no Shiny um script para uma UF e competência, execute-o no terminal e compare os arquivos de origem.
+5. Selecione dois anos do BPS, descreva preços por CATMAT e identifique valores extremos antes de qualquer medida-resumo.
+6. Simule uma seleção que exceda os recursos disponíveis e registre a mensagem de bloqueio produzida por `validar_recursos()`.
+
+## Síntese
+
+O uso seguro do Navegador combina quatro ações: verificar a versão, atualizar o catálogo, conservar a seleção e validar o resultado. A interface Shiny é adequada para descoberta; o script gerado e os artefatos do trabalho transformam essa descoberta em processo reproduzível.
