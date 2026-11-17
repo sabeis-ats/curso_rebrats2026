@@ -1,0 +1,38 @@
+# Instalação e prática com o Navegador de Dados do SUS
+
+::: {.callout-note title="Estado editorial"}
+Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+:::
+
+## Objetivos
+
+- Instalar e usar o Navegador em exercícios guiados.
+- Registrar fonte, competência, versão, unidade de análise e limitações.
+
+## Pré-requisitos
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Instalação
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Cenários de uso
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Diagnóstico de falhas
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Material pendente
+
+O conteúdo será completado após a incorporação do ZIP do Navegador de Dados do SUS ao repositório. A estrutura já reserva arquitetura, instalação, atualização e exercícios.
+
+## Próxima iteração
+
+- confirmar documentos normativos e layouts vigentes;
+- executar exemplos com uma competência de referência;
+- acrescentar controles de qualidade e exercícios;
+- revisar remissões, glossário e referências.
+

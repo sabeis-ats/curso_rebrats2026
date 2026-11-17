@@ -1,0 +1,34 @@
+# DBC, DBF e dbf2dbc.exe
+
+::: {.callout-note title="Estado editorial"}
+Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+:::
+
+## Objetivos
+
+- Explicar que dbf2dbc.exe compacta e descompacta, e documentar seu uso pela SABEIS no fluxo DBC→DBF.
+- Registrar fonte, competência, versão, unidade de análise e limitações.
+
+## Formatos DBC e DBF
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Compactação e descompactação com dbf2dbc.exe
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Wine, dbview e alternativas em R
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Correção operacional obrigatória
+
+O executável `dbf2dbc.exe`, distribuído com o TabWin, realiza as duas direções: **DBC→DBF** e **DBF→DBC**. No método SABEIS ele é executado sob Wine para descompactar DBC em DBF. A função `read.dbc::dbc2dbf()` é uma implementação distinta no ecossistema R e não altera essa característica do executável oficial.
+
+## Próxima iteração
+
+- confirmar documentos normativos e layouts vigentes;
+- executar exemplos com uma competência de referência;
+- acrescentar controles de qualidade e exercícios;
+- revisar remissões, glossário e referências.
+

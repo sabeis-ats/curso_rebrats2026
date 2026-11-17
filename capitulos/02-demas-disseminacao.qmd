@@ -1,0 +1,40 @@
+# Disseminação de dados pelo DEMAS/SEIDIGI/MS
+
+::: {.callout-note title="Estado editorial"}
+Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+:::
+
+## Objetivos
+
+- Identificar o DEMAS/SEIDIGI/MS como unidade responsável pela disseminação e documentar os canais atuais sem chamar os conjuntos de “dados DATASUS”.
+- Registrar fonte, competência, versão, unidade de análise e limitações.
+
+## Responsabilidade institucional atual
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Canais de disseminação
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Camadas de acesso e atualização institucional
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Convenção institucional
+
+Neste livro, os dados são denominados **dados abertos do SUS** ou pelo nome do sistema de informação. A disseminação federal é atribuída ao **DEMAS/SEIDIGI/MS**. O termo DATASUS aparece apenas em referências históricas, nomes próprios, endereços legados e documentos que o utilizam oficialmente.
+
+## Material incorporado integralmente
+
+O material abaixo foi incorporado como conteúdo do livro, preservando comandos, saídas e exemplos. A revisão editorial atualizará terminologia institucional sem alterar endereços técnicos e nomes históricos necessários à reprodução.
+
+{{< include ../fontes-incorporadas/07_cursoRm2_ecossistema.qmd >}}
+
+## Próxima iteração
+
+- confirmar documentos normativos e layouts vigentes;
+- executar exemplos com uma competência de referência;
+- acrescentar controles de qualidade e exercícios;
+- revisar remissões, glossário e referências.
+

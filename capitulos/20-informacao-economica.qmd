@@ -1,0 +1,36 @@
+# Informação econômica, financeira e de custos
+
+::: {.callout-note title="Estado editorial"}
+Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+:::
+
+## Objetivos
+
+- Combinar preços, financiamento e custos com definições claras de unidade, período e comparabilidade.
+- Registrar fonte, competência, versão, unidade de análise e limitações.
+
+## BPS e preços praticados
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## SIOPS e financiamento
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Custos, compras e comparabilidade
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Material incorporado integralmente
+
+O material abaixo foi incorporado como conteúdo do livro, preservando comandos, saídas e exemplos. A revisão editorial atualizará terminologia institucional sem alterar endereços técnicos e nomes históricos necessários à reprodução.
+
+{{< include ../fontes-incorporadas/03_cursoRm4_parquet_bps.qmd >}}
+
+## Próxima iteração
+
+- confirmar documentos normativos e layouts vigentes;
+- executar exemplos com uma competência de referência;
+- acrescentar controles de qualidade e exercícios;
+- revisar remissões, glossário e referências.
+

@@ -1,0 +1,34 @@
+# Classificações e referências clínicas
+
+::: {.callout-note title="Estado editorial"}
+Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+:::
+
+## Objetivos
+
+- Documentar classificações e padrões usados para procedimentos, materiais, medicamentos e produtos medicinais.
+- Registrar fonte, competência, versão, unidade de análise e limitações.
+
+## RENAME
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## CATMAT
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## ATC e DDD
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## IDMP, OBM e WHODrug
+
+Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+
+## Próxima iteração
+
+- confirmar documentos normativos e layouts vigentes;
+- executar exemplos com uma competência de referência;
+- acrescentar controles de qualidade e exercícios;
+- revisar remissões, glossário e referências.
+
