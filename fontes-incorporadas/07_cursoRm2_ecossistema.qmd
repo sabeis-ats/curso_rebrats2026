@@ -1,0 +1,2073 @@
+## Análise de microdados do SUS direto no R para Avaliação Econômica
+
+#### Módulo 2 — Ecossistema de dados do SUS com R
+
+
+**Objetivo do curso:** Capacitar participantes a extrair, validar, tratar e analisar microdados do SUS com R, integrando fontes de custos/preços e técnicas aplicadas à avaliação econômica.
+
+
+## Ecossistema de dados do SUS com R
+
+
+### Ementa
+
+- Como os dados do SUS são produzidos, organizados e disseminados?
+- Quais são os principais sistemas de informação e seus subsistemas?
+- Como acessar arquivos no repositório FTP do Ministério da Saúde, APIs e portais de dados abertos?
+- Como baixar e ler um arquivo DBC no R?
+- Como interpretar campos usando um dicionário de dados?
+- Como integrar produção ambulatorial, internações, estabelecimentos e procedimentos?
+- Como utilizar esses dados em análises de economia da saúde?
+- Quais cuidados de qualidade, temporalidade, governança e interpretação devem ser adotados?
+
+> **Objetivo da aula:** construir um fluxo reprodutível e intermediário no R, partindo de um arquivo público do SUS até uma tabela enriquecida com metadados e informações cadastrais.
+
+------------------------------------------------------------------------
+
+
+### Fundamentos
+
+
+#### O ecossistema de dados do SUS
+
+O SUS produz dados durante atividades assistenciais, administrativas, epidemiológicas, regulatórias e financeiras. Esses registros são enviados, validados, consolidados e disseminados por diferentes sistemas.
+
+Um mesmo fenômeno pode exigir mais de uma fonte. Para estudar a produção de um procedimento, por exemplo, pode ser necessário combinar:
+
+- **SIA:** produção ambulatorial;
+- **SIH:** internações hospitalares;
+- **CNES:** características dos estabelecimentos;
+- **SIGTAP:** descrição e atributos dos procedimentos;
+- **SIM:** mortalidade;
+- **SINASC:** nascidos vivos;
+- **SINAN:** agravos de notificação.
+
+> Os sistemas não são apenas arquivos. Cada um possui finalidade, fluxo, unidade de registro, periodicidade, regras de validação e dicionário próprios.
+
+
+#### Dado, informação e metadado no SUS
+
+Considere o código `0301010072` isoladamente:
+
+- como **dado**, é apenas uma sequência de caracteres;
+- com o SIGTAP, torna-se a identificação de um procedimento;
+- associado à competência, ao estabelecimento e à quantidade aprovada, torna-se **informação**;
+- analisado no contexto assistencial e financeiro, pode apoiar **conhecimento e decisão**.
+
+Metadados descrevem como interpretar o registro:
+
+| Elemento      | Exemplo                             |
+|---------------|-------------------------------------|
+| Nome do campo | `PA_PROC_ID`                        |
+| Descrição     | Código do procedimento ambulatorial |
+| Tipo          | Caractere                           |
+| Tamanho       | 10 posições                         |
+| Domínio       | Procedimentos válidos no SIGTAP     |
+| Temporalidade | Competência informada em `PA_CMP`   |
+| Origem        | Arquivo PA do SIA/SUS               |
+
+
+#### Dados de produção e dados analíticos
+
+Os arquivos disseminados resultam de processos operacionais. Para uso analítico, é comum realizar:
+
+1.  seleção de competências e unidades geográficas;
+2.  download dos arquivos;
+3.  leitura e padronização dos atributos (campos, variáveis);
+4.  aplicação dos dicionários;
+5.  validação da unidade de registro;
+6.  integração com tabelas de referência;
+7.  construção de indicadores.
+
+O produto analítico deve conservar a rastreabilidade até o arquivo de origem.
+
+
+``` sourceCode
+dados <- dados |>
+  dplyr::mutate(
+    arquivo_origem = "PAAC2501.dbc",
+    competencia = "202501"
+  )
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Governança dos dados do SUS
+
+
+#### Governança tripartite
+
+O SUS é administrado de forma interfederativa. A governança tripartite articula:
+
+| Esfera    | Participação geral no ciclo dos dados                                                                                                                     |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Federal   | Coordenação nacional, com estados e municípios, de políticas nacionais, padrões, sistemas e formas de disseminação. Representação do Ministério da Saúde. |
+| Estadual  | Coordenam fluxos regionais, consolidam e qualificam informações. Representação do Conass.                                                                 |
+| Municipal | Registram ou recebem grande parte dos dados produzidos nos serviços. Representação do Conasems.                                                           |
+
+A Comissão Intergestores Tripartite reúne as direções nacional, estaduais e municipais para pactuar aspectos operacionais, financeiros e administrativos da gestão compartilhada do SUS.
+
+A qualidade de uma base nacional depende de todas as etapas anteriores: registro no estabelecimento, processamento pelo gestor, validação, consolidação e disseminação.
+
+
+#### Governança da informação e da saúde digital
+
+A governança dos dados do SUS também ocorre em instâncias nacionais de informação e saúde digital. Essas instâncias articulam decisões políticas, técnicas e operacionais entre o Ministério da Saúde, o Conass e o Conasems.
+
+| Instância ou instrumento | Natureza                                               | Função principal                                                           |
+|--------------------------|--------------------------------------------------------|----------------------------------------------------------------------------|
+| **CIT**                  | Instância de pactuação interfederativa                 | Pactuar decisões com impacto nas três esferas de gestão                    |
+| **GT I&SD**              | Grupo de Trabalho de Informação e Saúde Digital da CIT | Preparar e discutir tecnicamente temas de informação e saúde digital       |
+| **CGSD**                 | Comitê Gestor de Saúde Digital                         | Governar a PNIIS e a Estratégia de Saúde Digital                           |
+| **PNIIS**                | Política nacional                                      | Estabelecer princípios e diretrizes para informação e informática em saúde |
+| **ESD28**                | Estratégia nacional                                    | Organizar objetivos e ações de saúde digital até 2028                      |
+| **RNDS**                 | Infraestrutura nacional                                | Permitir o intercâmbio seguro e interoperável de dados de saúde            |
+
+> Essas estruturas são complementares: a política define diretrizes, a estratégia organiza ações, os colegiados realizam governança e pactuação, e a RNDS fornece a infraestrutura para interoperabilidade.
+
+
+#### Grupo de Trabalho de Informação e Saúde Digital — GT I&SD
+
+O **Grupo de Trabalho de Informação e Saúde Digital**, também referido como **GT I&SD** ou **GTISD**, integra a estrutura de trabalho da Comissão Intergestores Tripartite.
+
+Participam de suas discussões representantes:
+
+- do Ministério da Saúde;
+- do Conass;
+- do Conasems;
+- de áreas técnicas convidadas, conforme o tema discutido.
+
+O grupo funciona como espaço técnico tripartite para:
+
+- discutir políticas de informação e saúde digital;
+- analisar propostas com impacto sobre estados e municípios;
+- acompanhar a implantação da RNDS;
+- discutir interoperabilidade e integração de sistemas;
+- avaliar necessidades de infraestrutura e conectividade;
+- preparar temas para apresentação ou pactuação na CIT;
+- acompanhar projetos de transformação digital do SUS.
+
+O GT I&SD não substitui a CIT. Ele aprofunda tecnicamente os assuntos antes de decisões ou pactuações interfederativas.
+
+
+#### Comitê Gestor de Saúde Digital — CGSD
+
+O **Comitê Gestor de Saúde Digital (CGSD)** foi instituído pela Portaria GM/MS nº 3.114, de 23 de janeiro de 2024.
+
+É um colegiado permanente e de natureza deliberativa, responsável pela governança da Política Nacional de Informação e Informática em Saúde e da Estratégia de Saúde Digital.
+
+Sua composição inclui representantes:
+
+- da Secretaria de Informação e Saúde Digital;
+- das secretarias finalísticas do Ministério da Saúde;
+- da Anvisa;
+- da ANS;
+- do Conass;
+- do Conasems;
+- da Fiocruz;
+- dos departamentos da Secretaria de Informação e Saúde Digital.
+
+Entre suas competências estão:
+
+- fortalecer, monitorar e avaliar a PNIIS;
+- propor, aprovar e revisar a Estratégia de Saúde Digital;
+- acompanhar soluções de tecnologia da informação e comunicação;
+- promover a interoperabilidade nacional em saúde;
+- incentivar a integração dos sistemas de informação à RNDS;
+- monitorar periodicamente a execução da estratégia;
+- encaminhar resultados e propostas à CIT quando houver impacto interfederativo.
+
+Propostas com impacto operacional, financeiro ou administrativo sobre estados e municípios podem ser submetidas à CIT, especialmente quando solicitado pelas representações do Conass e do Conasems.
+
+
+#### Relação entre GT I&SD e CGSD
+
+O GT I&SD e o CGSD atuam em espaços diferentes, embora tratem de temas relacionados.
+
+| Característica               | GT I&SD                                           | CGSD                                                      |
+|------------------------------|---------------------------------------------------|-----------------------------------------------------------|
+| Vinculação                   | Comissão Intergestores Tripartite                 | Ministério da Saúde                                       |
+| Ênfase                       | Discussão técnica tripartite                      | Governança da política e da estratégia                    |
+| Participação interfederativa | Ministério da Saúde, Conass e Conasems            | Ministério, Conass, Conasems e outras instituições        |
+| Resultado esperado           | Subsídios, encaminhamentos e propostas para a CIT | Deliberações, acompanhamento e avaliação da saúde digital |
+| Relação com a RNDS           | Discussão da implantação interfederativa          | Direcionamento estratégico e monitoramento                |
+
+Na prática, os dois espaços devem manter articulação para que decisões nacionais de saúde digital sejam técnica e operacionalmente compatíveis com as realidades estaduais e municipais.
+
+
+#### Política Nacional de Informação e Informática em Saúde — PNIIS
+
+A **Política Nacional de Informação e Informática em Saúde (PNIIS)** estabelece princípios e diretrizes para a produção, organização, acesso, compartilhamento e uso das informações em saúde.
+
+Entre seus temas centrais estão:
+
+- integração dos sistemas de informação;
+- interoperabilidade;
+- qualidade e integridade dos dados;
+- segurança da informação;
+- proteção de dados pessoais;
+- acesso à informação;
+- identificação adequada de pessoas, profissionais e estabelecimentos;
+- produção de conhecimento para gestão, assistência, vigilância e pesquisa;
+- redução das desigualdades de acesso às tecnologias digitais.
+
+A PNIIS orienta o uso da informação como recurso estratégico para:
+
+- atenção à saúde;
+- planejamento;
+- regulação;
+- vigilância;
+- avaliação;
+- controle social;
+- pesquisa;
+- tomada de decisão.
+
+> A PNIIS define diretrizes. Ela não corresponde a um sistema ou banco de dados específico.
+
+A versão publicada em 2021 foi estabelecida pela Portaria GM/MS nº 1.768, de 30 de julho de 2021. Em agosto de 2026, uma proposta de atualização, denominada Política Nacional de Informação e Saúde Digital, foi aprovada pelo Conselho Nacional de Saúde. A formalização normativa da nova política deve ser verificada quando o material for atualizado.
+
+
+#### Estratégia de Saúde Digital para o Brasil 2020–2028 — ESD28
+
+A **Estratégia de Saúde Digital para o Brasil 2020–2028**, conhecida como **ESD28**, organiza prioridades e ações para a transformação digital da saúde no período até 2028.
+
+A estratégia procura alinhar:
+
+- necessidades de saúde da população;
+- planejamento e gestão do SUS;
+- informatização dos serviços;
+- interoperabilidade;
+- formação de profissionais;
+- participação dos usuários;
+- inovação;
+- governança;
+- segurança e proteção dos dados.
+
+A ESD28 busca superar a fragmentação dos sistemas por meio de uma visão coordenada de saúde digital.
+
+Seus objetivos incluem:
+
+- conectar estabelecimentos e sistemas;
+- melhorar a continuidade do cuidado;
+- disponibilizar informações para cidadãos e profissionais;
+- apoiar decisões clínicas e administrativas;
+- ampliar a qualidade dos dados;
+- estimular padrões nacionais de interoperabilidade;
+- fortalecer o uso ético e seguro das informações.
+
+O CGSD acompanha e avalia a execução da Estratégia de Saúde Digital e pode propor revisões de seus objetivos e ações.
+
+
+#### Rede Nacional de Dados em Saúde — RNDS
+
+A **Rede Nacional de Dados em Saúde (RNDS)** é a infraestrutura nacional de interoperabilidade em saúde.
+
+Seu objetivo é permitir que informações produzidas por diferentes sistemas sejam compartilhadas de forma padronizada, segura e autorizada.
+
+A RNDS pode conectar:
+
+- estabelecimentos de saúde;
+- sistemas municipais;
+- sistemas estaduais;
+- sistemas nacionais;
+- laboratórios;
+- farmácias;
+- serviços públicos;
+- serviços de saúde suplementar;
+- aplicações utilizadas por cidadãos e profissionais.
+
+Entre os tipos de informação que podem circular pela rede estão:
+
+- atendimentos;
+- resultados de exames;
+- imunizações;
+- prescrições;
+- dispensações;
+- sumários clínicos;
+- informações de continuidade do cuidado.
+
+> A RNDS não deve ser entendida apenas como um banco de dados central. Ela constitui uma infraestrutura para intercâmbio interoperável de informações entre diferentes participantes.
+
+
+#### Interoperabilidade
+
+Interoperabilidade é a capacidade de diferentes sistemas trocarem informações e utilizarem corretamente o conteúdo recebido.
+
+Ela possui diferentes dimensões:
+
+| Dimensão       | Pergunta principal                                          |
+|----------------|-------------------------------------------------------------|
+| Técnica        | Os sistemas conseguem se conectar e transmitir os dados?    |
+| Sintática      | Os dados utilizam uma estrutura compatível?                 |
+| Semântica      | O significado é preservado entre os sistemas?               |
+| Organizacional | Existem processos e responsabilidades definidos?            |
+| Legal          | O compartilhamento respeita normas, finalidades e direitos? |
+
+Exemplos de elementos necessários:
+
+- identificadores nacionais;
+- terminologias padronizadas;
+- modelos de informação;
+- padrões de troca;
+- autenticação;
+- autorização;
+- registro de acesso;
+- regras de consentimento, quando aplicáveis;
+- proteção de dados pessoais.
+
+
+#### RNDS e sistemas tradicionais de informação
+
+A RNDS não elimina automaticamente sistemas como SIA, SIH, SIM, SINAN, SINASC e CNES.
+
+Esses sistemas possuem finalidades administrativas, epidemiológicas e assistenciais próprias. A RNDS busca ampliar a integração e o intercâmbio das informações.
+
+| Sistemas tradicionais                             | RNDS                                                |
+|---------------------------------------------------|-----------------------------------------------------|
+| Organizados segundo finalidades específicas       | Infraestrutura transversal de interoperabilidade    |
+| Podem utilizar arquivos e transmissões periódicas | Prioriza intercâmbio padronizado entre sistemas     |
+| Possuem layouts próprios                          | Utiliza modelos e padrões interoperáveis            |
+| Frequentemente orientados à consolidação nacional | Também apoia continuidade do cuidado e gestão local |
+| Mantêm fluxos históricos de processamento         | Promove integração entre diferentes participantes   |
+
+Durante a transição, é comum coexistirem:
+
+- sistemas legados;
+- arquivos de disseminação;
+- APIs;
+- bases nacionais;
+- plataformas locais;
+- serviços integrados à RNDS.
+
+
+#### Fluxo simplificado da governança
+
+| Etapa                                | Principal componente                          |
+|--------------------------------------|-----------------------------------------------|
+| Definição de princípios e diretrizes | PNIIS                                         |
+| Definição de prioridades e ações     | ESD28                                         |
+| Governança e monitoramento           | CGSD                                          |
+| Discussão técnica interfederativa    | GT I&SD                                       |
+| Pactuação entre gestores             | CIT                                           |
+| Implementação da interoperabilidade  | RNDS                                          |
+| Execução nos territórios             | União, estados, Distrito Federal e municípios |
+
+
+#### Implicações para a análise de dados
+
+A transformação digital não elimina a necessidade de compreender a origem e a finalidade dos dados.
+
+Ao utilizar informações integradas, o analista deve verificar:
+
+- qual sistema produziu o registro;
+- qual instituição é responsável pela informação;
+- qual era a finalidade original da coleta;
+- qual padrão foi utilizado;
+- quando o dado foi produzido e atualizado;
+- quais transformações foram realizadas;
+- quais regras de acesso e uso se aplicam;
+- se houve integração com outras fontes;
+- se o significado permaneceu consistente.
+
+> Interoperabilidade técnica não garante, isoladamente, qualidade, comparabilidade ou adequação analítica.
+
+
+#### Referências complementares
+
+BRASIL. Ministério da Saúde. *Estratégia de Saúde Digital para o Brasil 2020–2028*. Brasília, DF: Ministério da Saúde, 2020. Disponível em: <https://bvsms.saude.gov.br/bvs/publicacoes/estrategia_saude_digital_Brasil.pdf>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *Rede Nacional de Dados em Saúde*. Disponível em: <https://www.gov.br/saude/pt-br/composicao/seidigi/rnds>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *Comitê Gestor de Saúde Digital*. Disponível em: <https://www.gov.br/saude/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/cgsd>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *Regimento Interno do Comitê Gestor de Saúde Digital*. Disponível em: <https://www.gov.br/saude/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/cgsd/publicacoes/regimento-interno-comite-gestor-de-saude-digital.pdf>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. Portaria GM/MS nº 1.768, de 30 de julho de 2021. Altera o Anexo XLII da Portaria de Consolidação GM/MS nº 2, de 28 de setembro de 2017, para dispor sobre a Política Nacional de Informação e Informática em Saúde.
+
+BRASIL. Ministério da Saúde. Portaria GM/MS nº 3.114, de 23 de janeiro de 2024. Institui o Comitê Gestor de Saúde Digital.
+
+
+#### Ministério da Saúde
+
+No ecossistema analisado nesta aula, o Ministério da Saúde e a SEIDIGI/MS mantêm sistemas federais, nacionais, padrões, documentos técnicos e canais de disseminação.
+
+Os principais canais utilizados serão:
+
+- FTP de arquivos de disseminação;
+- Portal de Dados Abertos do SUS;
+- APIs públicas;
+- documentos de layout e dicionários de dados.
+
+
+#### Anvisa
+
+A Agência Nacional de Vigilância Sanitária atua na regulação sanitária de produtos e serviços. No campo econômico, a Câmara de Regulação do Mercado de Medicamentos - CMED estabelece critérios e limites regulatórios de preços de medicamentos.
+
+Essas informações podem apoiar:
+
+- comparação entre preço observado e teto regulatório;
+- análise de compras públicas;
+- estudos de acesso a medicamentos;
+- avaliação de impacto orçamentário.
+
+> Preço regulado, preço de compra, valor SIGTAP e custo do tratamento são conceitos diferentes.
+
+> repositório: <https://dados.anvisa.gov.br/dados/>
+
+
+#### ANS
+
+A Agência Nacional de Saúde Suplementar regula o setor de planos privados de assistência à saúde e disponibiliza bases sobre beneficiários, operadoras, produtos, utilização e informações econômico-financeiras.
+
+Esses dados permitem estudar:
+
+- cobertura da saúde suplementar;
+- concentração de mercado;
+- receitas, despesas e desempenho das operadoras;
+- utilização de serviços;
+- relações entre os setores público e suplementar.
+
+> inventário de dados abertos: <https://www.gov.br/ans/pt-br/acesso-a-informacao/perfil-do-setor/dados-abertos-1>. Tabulador: <https://www.ans.gov.br/anstabnet/>
+
+------------------------------------------------------------------------
+
+
+
+### Sistemas e centralizadores de informação
+
+
+#### Visão geral
+
+| Sistema    | Conteúdo principal                    | Unidade típica de análise       | Uso em economia da saúde                           |
+|------------|---------------------------------------|---------------------------------|----------------------------------------------------|
+| **SIA**    | Produção ambulatorial                 | Procedimento ou atendimento     | Quantidades e valores ambulatoriais aprovados      |
+| **SIH**    | Internações financiadas pelo SUS      | AIH ou ato hospitalar           | Permanência, utilização e valores hospitalares     |
+| **SIM**    | Óbitos                                | Declaração de óbito             | Mortalidade, carga de doença e desfechos           |
+| **SINAN**  | Agravos de notificação                | Notificação ou investigação     | Vigilância e impacto de agravos                    |
+| **SINASC** | Nascidos vivos                        | Declaração de nascido vivo      | Saúde materno-infantil e planejamento              |
+| **CNES**   | Estabelecimentos, serviços e recursos | Estabelecimento por competência | Oferta, capacidade instalada e perfil do prestador |
+| **SIGTAP** | Procedimentos, medicamentos e OPM     | Procedimento por competência    | Valores de referência e regras de compatibilidade  |
+
+
+#### SIA: produção ambulatorial
+
+O Sistema de Informações Ambulatoriais recebe e processa a produção ambulatorial. Os registros podem resultar de diferentes instrumentos, como BPA e APAC.
+
+
+##### Arquivo PA
+
+O arquivo `PAUFAAMM.dbc` consolida procedimentos ambulatoriais. Seu preenchimento varia conforme o instrumento identificado em `PA_DOCORIG`.
+
+Campos particularmente úteis:
+
+| Campo        | Conteúdo                                         |
+|--------------|--------------------------------------------------|
+| `PA_CODUNI`  | Código CNES do estabelecimento                   |
+| `PA_GESTAO`  | Município gestor ou indicação de gestão estadual |
+| `PA_CMP`     | Competência de realização                        |
+| `PA_PROC_ID` | Procedimento ambulatorial                        |
+| `PA_DOCORIG` | Instrumento de registro                          |
+| `PA_QTDAPR`  | Quantidade aprovada                              |
+| `PA_VALAPR`  | Valor aprovado                                   |
+| `PA_TPFIN`   | Tipo de financiamento                            |
+| `PA_SUBFIN`  | Subtipo de financiamento                         |
+
+> A linha do PA não representa sempre uma pessoa. Dependendo do instrumento, pode representar produção consolidada, atendimento individualizado ou procedimento de uma APAC.
+
+
+##### Fluxo da produção ambulatorial e hospitalar
+
+A produção assistencial do SUS é registrada por diferentes instrumentos. A escolha depende da modalidade de atendimento, da necessidade de identificação do usuário e da exigência de autorização prévia.
+
+| Instrumento | Sistema | Característica principal                                            |
+|-------------|---------|---------------------------------------------------------------------|
+| **BPA-C**   | SIA     | Produção ambulatorial consolidada                                   |
+| **BPA-I**   | SIA     | Produção ambulatorial individualizada                               |
+| **APAC**    | SIA     | Procedimentos ambulatoriais que exigem autorização e acompanhamento |
+| **AIH**     | SIH     | Internações hospitalares autorizadas                                |
+
+
+###### BPA-C
+
+O **Boletim de Produção Ambulatorial Consolidado (BPA-C)** registra quantidades agregadas de procedimentos.
+
+Uma linha geralmente representa a produção consolidada segundo combinações como:
+
+- estabelecimento;
+- competência;
+- procedimento;
+- CBO;
+- características administrativas.
+
+O BPA-C não identifica individualmente cada usuário. Por isso, é adequado para analisar quantidade produzida, mas não para acompanhar trajetórias individuais.
+
+
+###### BPA-I
+
+O **Boletim de Produção Ambulatorial Individualizado (BPA-I)** registra procedimentos com informações individualizadas do atendimento.
+
+Pode incluir:
+
+- estabelecimento;
+- usuário;
+- procedimento;
+- profissional;
+- CBO;
+- data do atendimento;
+- município de residência;
+- diagnóstico, quando exigido;
+- quantidade apresentada.
+
+> Individualização não significa necessariamente autorização prévia. O instrumento de registro e as regras do procedimento devem ser consultados no SIGTAP.
+
+
+###### APAC
+
+A **Autorização de Procedimentos Ambulatoriais de Alta Complexidade/Custo (APAC)** é utilizada em linhas de cuidado ou procedimentos que exigem autorização, acompanhamento e registro individualizado.
+
+O fluxo simplificado é:
+
+> Solicitação → avaliação técnica → autorização → realização → apresentação da produção → processamento no SIA
+
+A APAC é utilizada, entre outras áreas, em:
+
+- medicamentos do Componente Especializado da Assistência Farmacêutica;
+- quimioterapia;
+- radioterapia;
+- terapia renal substitutiva;
+- atenção domiciliar;
+- outros tratamentos continuados ou especializados.
+
+Uma APAC pode gerar vários registros no arquivo PA:
+
+- `P`: procedimento principal;
+- `S`: procedimento secundário.
+
+
+
+##### Produção especializada e financiamento MAC e FAEC
+
+A produção ambulatorial e hospitalar de média e alta complexidade é registrada principalmente no SIA e no SIH.
+
+Os recursos federais destinados a essas ações estão organizados, de forma geral, em dois componentes:
+
+| Componente                | Característica                                                                                            |
+|---------------------------|-----------------------------------------------------------------------------------------------------------|
+| **Limite Financeiro MAC** | Recursos transferidos regularmente aos fundos estaduais, distrital e municipais                           |
+| **FAEC**                  | Financiamento de ações estratégicas e determinados procedimentos, apurado com base na produção registrada |
+
+
+###### Limite Financeiro MAC
+
+O **Limite Financeiro da Média e Alta Complexidade Ambulatorial e Hospitalar** financia ações e serviços especializados sob gestão estadual, distrital ou municipal.
+
+Ele pode contemplar:
+
+- consultas especializadas;
+- exames;
+- procedimentos ambulatoriais;
+- internações;
+- incentivos de custeio;
+- serviços habilitados;
+- redes e políticas específicas.
+
+A transferência federal ocorre de forma regular e automática aos fundos de saúde, observadas as regras de programação e financiamento.
+
+
+###### FAEC
+
+O **Fundo de Ações Estratégicas e Compensação (FAEC)** financia procedimentos ou políticas considerados estratégicos, além de determinados procedimentos incorporados ao SUS.
+
+O fluxo simplificado é:
+
+> Produção assistencial → registro no SIA ou SIH → processamento → apuração → transferência financeira
+
+A classificação do financiamento pode ser investigada no SIA por campos como:
+
+- `PA_TPFIN`: tipo de financiamento;
+- `PA_SUBFIN`: subtipo de financiamento;
+- `PA_VALAPR`: valor aprovado;
+- `PA_QTDAPR`: quantidade aprovada.
+
+Exemplo:
+
+
+``` sourceCode
+pa |>
+  dplyr::group_by(PA_TPFIN, PA_SUBFIN) |>
+  dplyr::summarise(
+    quantidade = sum(PA_QTDAPR, na.rm = TRUE),
+    valor_aprovado = sum(PA_VALAPR, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+
+###### Cuidados de interpretação
+
+- nem toda produção registrada gera pagamento adicional ao estabelecimento;
+- produção aprovada não é sinônimo de transferência federal;
+- valor SIGTAP não representa necessariamente custo;
+- Limite MAC e FAEC possuem lógicas distintas;
+- incentivos e recursos globais podem não ser identificados em cada procedimento;
+- diferenças entre produção apresentada e aprovada devem ser consideradas.
+
+> Para estudar alocação de recursos, combine SIA/SIH com informações do SISMAC, Fundo Nacional de Saúde, InvestSUS e SIOPS.
+
+Fonte: [Financiamento da Média e Alta Complexidade](https://www.gov.br/saude/pt-br/acesso-a-informacao/gestao-do-sus/programacao-regulacao-controle-e-financiamento-da-mac/financiamento-da-media-e-alta-complexidades-mac).
+
+
+###### AIH
+
+A **Autorização de Internação Hospitalar (AIH)** é utilizada para registrar e processar internações financiadas pelo SUS.
+
+O fluxo simplificado é:
+
+> Indicação de internação → solicitação → autorização → internação → alta ou encerramento → processamento no SIH
+
+A AIH reúne informações como:
+
+- estabelecimento;
+- usuário;
+- diagnóstico;
+- procedimento solicitado;
+- procedimento realizado;
+- datas de internação e saída;
+- permanência;
+- utilização de UTI;
+- valores hospitalares e profissionais;
+- motivo de saída;
+- ocorrência de óbito.
+
+
+###### Relação entre os instrumentos e os arquivos disseminados
+
+| Instrumento | Arquivo de disseminação     | Unidade aproximada                     |
+|-------------|-----------------------------|----------------------------------------|
+| BPA-C       | SIA PA                      | Produção consolidada                   |
+| BPA-I       | SIA PA e BI                 | Atendimento individualizado            |
+| APAC        | SIA PA e arquivos temáticos | Autorização e procedimentos associados |
+| AIH         | SIH RD e SP                 | Internação e atos profissionais        |
+
+> O arquivo PA reúne registros originados por instrumentos diferentes. Antes de contar atendimentos ou usuários, verifique `PA_DOCORIG` e a unidade de registro.
+
+Fonte: [Informe Técnico do SIA/SUS](https://www.gov.br/saude/pt-br/composicao/saes/samu-192/sistemas/sistema-de-informacoes-ambulatoriais-sia-sus).
+
+
+
+
+#### Regulação do acesso a medicamentos do CEAF
+
+O **Componente Especializado da Assistência Farmacêutica (CEAF)** é uma estratégia de acesso ambulatorial a medicamentos cujas linhas de cuidado são definidas em Protocolos Clínicos e Diretrizes Terapêuticas.
+
+O fluxo geral é:
+
+> Prescrição → solicitação → avaliação documental e clínica → autorização → dispensação → renovação e acompanhamento
+
+
+##### Prescrição
+
+O profissional prescreve o medicamento e preenche os documentos exigidos, incluindo:
+
+- Laudo para Solicitação, Avaliação e Autorização de Medicamentos — LME;
+- prescrição;
+- exames;
+- documentos previstos no PCDT;
+- identificação do usuário.
+
+
+##### Solicitação
+
+O usuário ou responsável apresenta a documentação à unidade responsável definida pela Secretaria Estadual de Saúde ou do Distrito Federal.
+
+
+##### Avaliação e autorização
+
+A solicitação é avaliada segundo:
+
+- diagnóstico;
+- critérios de inclusão;
+- critérios de exclusão;
+- tratamento prévio;
+- exames obrigatórios;
+- dose;
+- duração;
+- regras do PCDT.
+
+
+##### Dispensação
+
+Após o deferimento, o medicamento é fornecido pela unidade responsável. A continuidade pode exigir renovação, exames e reavaliação.
+
+> As Secretarias Estaduais de Saúde e do Distrito Federal são responsáveis pela avaliação das solicitações e pela dispensação no CEAF.
+
+Fonte: [Componente Especializado da Assistência Farmacêutica](https://www.gov.br/saude/pt-br/composicao/sectics/daf/ceaf).
+
+
+
+#### Arquivo SIA AM — APAC de medicamentos
+
+O arquivo `AMUFAAMM.dbc` contém registros processados de APAC de medicamentos.
+
+Exemplo:
+
+``` text
+AMAC2501.dbc
+```
+
+Interpretação:
+
+| Parte  | Significado            |
+|--------|------------------------|
+| `AM`   | APAC de medicamentos   |
+| `AC`   | Acre                   |
+| `25`   | Ano de 2025            |
+| `01`   | Janeiro                |
+| `.dbc` | Arquivo DBF comprimido |
+
+O arquivo pode apoiar análises sobre:
+
+- usuários autorizados;
+- procedimentos de medicamentos;
+- diagnóstico;
+- estabelecimento;
+- município;
+- quantidade;
+- competência;
+- continuidade do tratamento.
+
+Exemplo de download:
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/AMAC2501.dbc"
+)
+
+curl::curl_download(url, "AMAC2501.dbc")
+am <- read.dbc::read.dbc("AMAC2501.dbc")
+```
+
+
+Exploração mínima:
+
+
+``` sourceCode
+dim(am)
+names(am)
+head(am, 3)
+```
+
+
+> O arquivo AM registra APAC processada no SIA. Ele não comprova isoladamente adesão ao tratamento, consumo pelo paciente ou resultado clínico.
+
+
+#### Regulação do tratamento oncológico e arquivo SIA AQ
+
+A assistência oncológica é organizada em estabelecimentos habilitados e envolve diagnóstico, estadiamento, definição terapêutica, autorização e registro da produção.
+
+A APAC é utilizada para registrar procedimentos ambulatoriais de tratamento, incluindo quimioterapia.
+
+O arquivo `AQUFAAMM.dbc` contém registros de APAC de quimioterapia.
+
+Exemplo:
+
+``` text
+AQAC2501.dbc
+```
+
+Campos e informações podem permitir análises sobre:
+
+- estabelecimento;
+- usuário;
+- diagnóstico;
+- tipo de tumor;
+- procedimento;
+- esquema ou finalidade terapêutica;
+- competência;
+- continuidade do tratamento;
+- quantidade apresentada ou aprovada.
+
+Exemplo de download:
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/AQAC2501.dbc"
+)
+
+curl::curl_download(url, "AQAC2501.dbc")
+aq <- read.dbc::read.dbc("AQAC2501.dbc")
+```
+
+
+Exploração mínima:
+
+
+``` sourceCode
+dim(aq)
+names(aq)
+head(aq, 3)
+```
+
+
+##### Particularidade do financiamento oncológico
+
+No tratamento oncológico, a APAC registra procedimentos terapêuticos. O financiamento não deve ser interpretado automaticamente como reembolso de cada medicamento utilizado.
+
+O estabelecimento habilitado organiza o tratamento conforme:
+
+- condição clínica;
+- estadiamento;
+- diretrizes diagnósticas e terapêuticas;
+- estrutura disponível;
+- procedimentos autorizados;
+- regras de financiamento do SUS.
+
+> O procedimento registrado, o medicamento utilizado, o valor aprovado e o custo real do tratamento são dimensões diferentes.
+
+Fonte: [Legislação da Assistência Farmacêutica em Oncologia](https://www.gov.br/saude/pt-br/composicao/sectics/daf/af-onco/legislacao).
+
+
+
+#### PCDT, Conitec, ATS e Rebrats
+
+Os **Protocolos Clínicos e Diretrizes Terapêuticas (PCDT)** estabelecem critérios para diagnóstico, tratamento e acompanhamento de condições clínicas no SUS.
+
+Podem definir:
+
+- critérios de inclusão e exclusão;
+- exames necessários;
+- alternativas terapêuticas;
+- doses e esquemas;
+- mecanismos de monitoramento;
+- critérios de interrupção;
+- responsabilidades dos gestores.
+
+
+#### Conitec
+
+A **Comissão Nacional de Incorporação de Tecnologias no SUS (Conitec)** assessora o Ministério da Saúde em processos relacionados a:
+
+- incorporação;
+- exclusão;
+- alteração de tecnologias;
+- elaboração ou atualização de PCDT.
+
+A decisão considera elementos como:
+
+- eficácia;
+- efetividade;
+- segurança;
+- avaliação econômica;
+- impacto orçamentário;
+- relevância para o SUS;
+- participação social.
+
+> A Conitec avalia e recomenda. A decisão e a publicação dos PCDT são formalizadas pelo Ministério da Saúde.
+
+
+#### Avaliação de Tecnologias em Saúde
+
+A **Avaliação de Tecnologias em Saúde (ATS)** examina consequências clínicas, econômicas, sociais, organizacionais e éticas do uso de tecnologias.
+
+Tecnologia em saúde pode incluir:
+
+- medicamentos;
+- equipamentos;
+- procedimentos;
+- testes diagnósticos;
+- sistemas;
+- modelos de cuidado.
+
+Em economia da saúde, a ATS pode utilizar:
+
+- custo-efetividade;
+- custo-utilidade;
+- custo-benefício;
+- impacto orçamentário;
+- análise de incerteza;
+- avaliação de equidade.
+
+
+#### Rebrats
+
+A **Rede Brasileira de Avaliação de Tecnologias em Saúde (Rebrats)** articula instituições e núcleos que produzem e disseminam estudos de ATS para apoiar decisões no SUS.
+
+A Rebrats contribui por meio de:
+
+- pareceres técnico-científicos;
+- revisões sistemáticas;
+- avaliações econômicas;
+- análises de impacto orçamentário;
+- formação de profissionais;
+- desenvolvimento de métodos;
+- cooperação entre instituições.
+
+
+#### Relação com os dados do SIA e SIH
+
+| Componente | Papel                                                   |
+|------------|---------------------------------------------------------|
+| Conitec    | Avaliação e recomendação sobre tecnologias e protocolos |
+| PCDT       | Definição de critérios clínicos e terapêuticos          |
+| SIGTAP     | Regras administrativas e atributos dos procedimentos    |
+| SIA/SIH    | Registro da produção processada                         |
+| SIA AM     | Registros de APAC de medicamentos                       |
+| SIA AQ     | Registros de APAC de quimioterapia                      |
+| Rebrats    | Produção e disseminação de estudos de ATS               |
+
+Os dados administrativos podem apoiar ATS e monitoramento pós-incorporação, mas possuem limitações:
+
+- não registram todos os desfechos clínicos;
+- valores aprovados não equivalem necessariamente a custos;
+- podem existir mudanças de codificação;
+- a cobertura depende da qualidade do registro;
+- comparações históricas exigem compatibilidade temporal com PCDT e SIGTAP.
+
+Fontes:
+
+- [Conitec](https://www.gov.br/conitec/pt-br)
+- [Rebrats](https://rebrats.saude.gov.br/quem-somos)
+
+
+#### SIH: internações hospitalares
+
+O Sistema de Informações Hospitalares dissemina dados das Autorizações de Internação Hospitalar - AIH.
+
+
+##### Arquivo RD
+
+O arquivo `RDUFAAMM.dbc` contém dados reduzidos das AIH.
+
+| Campo        | Conteúdo                         |
+|--------------|----------------------------------|
+| `N_AIH`      | Número da AIH                    |
+| `CNES`       | Estabelecimento hospitalar       |
+| `PROC_REA`   | Procedimento principal realizado |
+| `QT_DIARIAS` | Quantidade de diárias            |
+| `DIAS_PERM`  | Dias de permanência              |
+| `VAL_SH`     | Valor dos serviços hospitalares  |
+| `VAL_SP`     | Valor dos serviços profissionais |
+| `VAL_TOT`    | Valor total da AIH               |
+| `DIAG_PRINC` | Diagnóstico principal            |
+| `MORTE`      | Indicador de óbito               |
+| `MUNIC_RES`  | Município de residência          |
+| `MUNIC_MOV`  | Município do estabelecimento     |
+
+
+##### Arquivo SP
+
+O arquivo `SPUFAAMM.dbc` detalha atos profissionais associados à internação. Ele possui maior granularidade que o RD e pode conter várias linhas para uma AIH.
+
+> O **PA pertence ao SIA** e o **RD pertence ao SIH**. Ambos são mensais e podem ser articulados com CNES e SIGTAP, mas possuem unidades de registro diferentes.
+
+
+
+#### Regulação do acesso e registros do SIA e SIH
+
+A regulação do acesso organiza a entrada dos usuários nos serviços segundo:
+
+- necessidade clínica;
+- risco;
+- disponibilidade da oferta;
+- referências territoriais;
+- protocolos;
+- prioridades;
+- pactuações entre gestores.
+
+Sistemas como SISREG e e-SUS Regulação podem registrar:
+
+- solicitações;
+- filas;
+- classificação de risco;
+- agendamentos;
+- encaminhamentos;
+- autorizações;
+- disponibilidade de vagas.
+
+O SIA e o SIH possuem outra função principal: registrar, processar e disseminar a produção ambulatorial e hospitalar apresentada pelos gestores.
+
+| Etapa                    | Sistema ou instrumento associado             |
+|--------------------------|----------------------------------------------|
+| Solicitação de acesso    | Sistema local, SISREG ou e-SUS Regulação     |
+| Avaliação e priorização  | Central de regulação                         |
+| Autorização ambulatorial | APAC ou autorização do BPA-I, quando exigida |
+| Autorização hospitalar   | AIH                                          |
+| Registro da produção     | SIA ou SIH                                   |
+| Processamento e controle | Gestor e sistemas nacionais                  |
+| Disseminação             | Arquivos públicos do SIA e SIH               |
+
+O SIA e o SIH podem apoiar análises de acesso por meio de:
+
+- município de residência;
+- município de atendimento;
+- estabelecimento;
+- procedimento;
+- competência;
+- quantidade aprovada;
+- internação;
+- permanência;
+- deslocamento entre territórios.
+
+Entretanto, essas bases geralmente não apresentam toda a demanda reprimida.
+
+> A ausência de produção pode significar ausência de demanda, falta de oferta, barreira de acesso, não autorização, não realização ou falha de registro.
+
+Para estudar acesso de forma mais completa, combine:
+
+- filas reguladas;
+- solicitações;
+- oferta do CNES;
+- produção do SIA e SIH;
+- população;
+- tempos de espera;
+- pactuações regionais.
+
+Fonte: [Sistemas de Informação na Regulação do Acesso](https://www.gov.br/saude/pt-br/composicao/saes/drac/regulacao-do-acesso/sistemas-de-informacao).
+
+
+#### SIM, SINAN e SINASC
+
+- **SIM:** permite analisar causas básicas e associadas de morte, local de residência, características demográficas e circunstâncias do óbito.
+- **SINAN:** organiza notificações e investigações de agravos; seus subsistemas variam conforme a doença ou agravo.
+- **SINASC:** reúne informações da Declaração de Nascido Vivo, incluindo características maternas, gestação, parto e recém-nascido.
+
+Essas fontes não medem custos diretamente, mas ajudam a definir necessidades, desfechos, carga de doença e populações de referência.
+
+
+#### CNES
+
+O Cadastro Nacional de Estabelecimentos de Saúde descreve a oferta e a estrutura dos serviços.
+
+Subsistemas frequentes:
+
+| Sigla | Conteúdo                |
+|-------|-------------------------|
+| `ST`  | Estabelecimentos        |
+| `DC`  | Dados complementares    |
+| `PF`  | Profissionais           |
+| `LT`  | Leitos                  |
+| `EQ`  | Equipamentos            |
+| `SR`  | Serviços especializados |
+| `EP`  | Equipes                 |
+| `HB`  | Habilitações            |
+| `GM`  | Gestão e metas          |
+
+O CNES permite contextualizar a produção segundo estabelecimento, município, gestão, natureza e capacidade instalada.
+
+
+#### SIGTAP
+
+O SIGTAP organiza a Tabela de Procedimentos, Medicamentos e OPM do SUS. Além do código e do nome, registra atributos e compatibilidades que variam por competência.
+
+Pode conter relações com:
+
+- grupo, subgrupo e forma de organização;
+- modalidade de atendimento;
+- instrumento de registro;
+- financiamento;
+- CBO;
+- CID;
+- serviço e classificação;
+- idade e sexo;
+- valores de referência.
+
+> Um procedimento deve ser interpretado usando o SIGTAP da competência correspondente. A tabela pode mudar ao longo do tempo.
+
+
+#### Fundo Nacional de Saúde e sistemas de financiamento
+
+O **Fundo Nacional de Saúde (FNS)** é a unidade responsável pela gestão financeira de recursos federais destinados ao SUS.
+
+Os recursos podem ser executados por modalidades como:
+
+- transferências fundo a fundo;
+- convênios;
+- contratos de repasse;
+- termos de execução descentralizada;
+- investimentos;
+- emendas parlamentares.
+
+A análise do financiamento exige distinguir:
+
+| Etapa          | Exemplo de informação                  |
+|----------------|----------------------------------------|
+| Programação    | Limite financeiro ou proposta          |
+| Dotação        | Crédito autorizado no orçamento        |
+| Empenho        | Reserva orçamentária                   |
+| Liquidação     | Reconhecimento da obrigação            |
+| Pagamento      | Saída financeira                       |
+| Transferência  | Repasse ao fundo ou entidade           |
+| Execução local | Aplicação do recurso pelo beneficiário |
+
+> Valor transferido não é sinônimo de despesa executada pelo ente, assim como despesa empenhada não é necessariamente paga.
+
+
+#### InvestSUS
+
+O **InvestSUS** reúne ferramentas e painéis para gestão e acompanhamento de recursos federais da saúde.
+
+Entre os dados disponíveis estão:
+
+- repasses fundo a fundo;
+- saldos de contas dos fundos de saúde;
+- propostas de investimento;
+- instrumentos formalizados;
+- empenhos e pagamentos;
+- emendas parlamentares;
+- equipamentos e materiais permanentes;
+- obras;
+- execução orçamentária;
+- instrumentos de planejamento;
+- informações bancárias;
+- transferências registradas no Transferegov.
+
+Painéis especialmente úteis:
+
+| Painel                 | Conteúdo                                                      |
+|------------------------|---------------------------------------------------------------|
+| Repasses Fundo a Fundo | Valores transferidos a estados, municípios e Distrito Federal |
+| Saldos de Repasses     | Saldos e movimentações das contas dos fundos de saúde         |
+| Emendas Parlamentares  | Indicações, instrumentos, empenhos e pagamentos               |
+| Equipamentos           | Equipamentos financiados com recursos federais                |
+| Obras Fundo a Fundo    | Situação financeira e física das obras                        |
+| InvestSUS Gestão       | Visão consolidada dos recursos e instrumentos                 |
+| Execução Orçamentária  | Execução do orçamento do Ministério da Saúde                  |
+
+O InvestSUS pode ser usado para responder:
+
+- quanto foi transferido para determinado município?
+- qual ação ou componente financiou o repasse?
+- em que data ocorreu a transferência?
+- qual instrumento originou o recurso?
+- qual é a situação de uma proposta ou obra?
+- existem saldos nas contas vinculadas?
+
+Fonte: [Painéis de informações do Fundo Nacional de Saúde](https://www.gov.br/saude/pt-br/acesso-a-informacao/convenios-e-transferencias/acesse-o-painel-de-convenios-e-contratos-do-fundo-nacional-de-saude).
+
+
+#### SIOPS
+
+O **Sistema de Informações sobre Orçamentos Públicos em Saúde (SIOPS)** recebe dados declarados por União, estados, Distrito Federal e municípios sobre receitas e despesas públicas em saúde.
+
+Os dados permitem acompanhar:
+
+- receitas totais;
+- receitas de impostos e transferências;
+- transferências recebidas para a saúde;
+- despesas empenhadas;
+- despesas liquidadas;
+- despesas pagas;
+- despesas por subfunção;
+- aplicação de recursos próprios;
+- cumprimento dos mínimos constitucionais;
+- indicadores fiscais da saúde.
+
+O SIOPS responde a perguntas diferentes das bases assistenciais:
+
+| Fonte           | Pergunta                                                |
+|-----------------|---------------------------------------------------------|
+| SIA e SIH       | Qual produção foi registrada e aprovada?                |
+| FNS e InvestSUS | Quanto a União transferiu?                              |
+| SIOPS           | Quanto o ente declarou como receita e despesa em saúde? |
+
+> Os dados do SIOPS são orçamentários e declaratórios. Eles não devem ser interpretados como custos individuais dos procedimentos.
+
+Fonte: [Sistema de Informações sobre Orçamentos Públicos em Saúde](https://www.gov.br/saude/pt-br/acesso-a-informacao/siops).
+
+
+#### SISMOB
+
+O **Sistema de Monitoramento de Obras (SISMOB)** acompanha obras de infraestrutura da saúde financiadas por transferências fundo a fundo.
+
+Os dados podem incluir:
+
+- identificação da proposta;
+- município e localização;
+- tipo de estabelecimento;
+- objeto da obra;
+- valor pactuado;
+- valores transferidos;
+- situação da obra;
+- percentual de execução;
+- etapas de monitoramento;
+- datas de início e conclusão;
+- registros fotográficos;
+- paralisação, cancelamento ou retomada.
+
+O SISMOB permite relacionar financiamento de infraestrutura com:
+
+- expansão da capacidade instalada;
+- abertura ou reforma de estabelecimentos;
+- equipamentos;
+- dados do CNES;
+- oferta posterior de serviços;
+- produção registrada no SIA e no SIH.
+
+Exemplo de desenho analítico:
+
+> Obra financiada → estabelecimento no CNES → serviço habilitado → produção no SIA/SIH
+
+> A presença de uma obra concluída não comprova, isoladamente, que o serviço entrou em funcionamento. A confirmação deve utilizar CNES e dados de produção.
+
+Fonte: [Painéis do Fundo Nacional de Saúde](https://www.gov.br/saude/pt-br/acesso-a-informacao/convenios-e-transferencias/acesse-o-painel-de-convenios-e-contratos-do-fundo-nacional-de-saude).
+
+
+#### SISMAC
+
+O **Sistema de Controle do Limite Financeiro da Média e Alta Complexidade (SISMAC)** apoia o acompanhamento dos limites financeiros federais destinados às ações ambulatoriais e hospitalares de média e alta complexidade.
+
+Pode conter informações sobre:
+
+- limite financeiro por estado ou município;
+- parcelas e componentes do limite;
+- remanejamentos;
+- incorporações;
+- deduções;
+- incentivos;
+- portarias relacionadas;
+- histórico de alterações;
+- impacto financeiro de habilitações ou políticas.
+
+O SISMAC deve ser analisado em conjunto com:
+
+| Fonte     | Informação complementar            |
+|-----------|------------------------------------|
+| SIA e SIH | Produção assistencial              |
+| SIGTAP    | Regras e valores dos procedimentos |
+| CNES      | Estabelecimentos e habilitações    |
+| FNS       | Transferências realizadas          |
+| SIOPS     | Receitas e despesas declaradas     |
+| InvestSUS | Instrumentos, repasses e saldos    |
+
+> O SISMAC informa limites e componentes financeiros. Ele não representa, isoladamente, produção, transferência efetiva ou execução da despesa.
+
+------------------------------------------------------------------------
+
+
+
+### Fontes e formas de acesso
+
+
+#### repositório FTP do Ministério da Saúde
+
+O FTP disponibiliza arquivos históricos organizados por sistema, período e subsistema. Os nomes geralmente codificam:
+
+- tipo do arquivo;
+- unidade da federação;
+- ano;
+- mês ou competência.
+
+Exemplo:
+
+``` text
+PAAC2501.dbc
+```
+
+Interpretação:
+
+| Parte  | Significado            |
+|--------|------------------------|
+| `PA`   | Produção ambulatorial  |
+| `AC`   | Acre                   |
+| `25`   | Ano de 2025            |
+| `01`   | Janeiro                |
+| `.dbc` | Arquivo DBF comprimido |
+
+
+#### API
+
+APIs permitem consultar dados por parâmetros e receber respostas estruturadas, frequentemente em JSON.
+
+Exemplos relevantes:
+
+- API CKAN do Portal de Dados Abertos do SUS;
+- API do Banco de Preços em Saúde - BPS;
+- APIs e conjuntos disponibilizados por órgãos vinculados.
+
+APIs podem exigir paginação, filtros, limites por consulta e tratamento de falhas.
+
+
+#### Portal de Dados Abertos do SUS
+
+O portal organiza conjuntos e recursos em formatos como CSV, JSON, XLSX e ZIP. O catálogo CKAN também oferece uma API para pesquisa programática.
+
+Uma busca mínima:
+
+
+``` sourceCode
+library(httr2)
+
+resultado <- request(
+  "https://dadosabertos.saude.gov.br/api/3/action/package_search"
+) |>
+  req_url_query(q = "economia da saúde", rows = 3) |>
+  req_perform() |>
+  resp_body_json(simplifyVector = TRUE)
+
+resultado$result$results$title
+```
+
+
+
+#### Documentação e dicionários
+
+Arquivos sem dicionário podem ser tecnicamente legíveis e semanticamente inutilizáveis. Antes da análise, localize:
+
+- informe técnico;
+- layout da versão correspondente;
+- domínio das categorias;
+- notas sobre alterações temporais;
+- regra de formação do nome do arquivo;
+- unidade de registro.
+
+------------------------------------------------------------------------
+
+
+
+### Fluxo prático: do FTP à análise
+
+
+#### Preparar o ambiente
+
+Instale os pacotes uma única vez:
+
+
+``` sourceCode
+install.packages(c("curl", "dplyr", "readr", "remotes"))
+remotes::install_github("danicat/read.dbc")
+```
+
+
+Carregue os pacotes a cada nova sessão:
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+library(read.dbc)
+```
+
+
+
+#### Baixar um arquivo DBC
+
+Neste exemplo, será baixada a produção ambulatorial do Acre referente a janeiro de 2025.
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/PAAC2501.dbc"
+)
+
+curl_download(url, "PAAC2501.dbc")
+```
+
+
+Confirme que o arquivo foi criado:
+
+
+``` sourceCode
+file.exists("PAAC2501.dbc")
+file.info("PAAC2501.dbc")$size
+```
+
+
+
+#### Descompactar e ler com `read.dbc`
+
+A função `read.dbc()` descomprime e lê o conteúdo diretamente em um data frame.
+
+
+``` sourceCode
+pa <- read.dbc("PAAC2501.dbc")
+```
+
+
+Não é necessário gerar um DBF intermediário para iniciar a análise.
+
+
+``` sourceCode
+class(pa)
+dim(pa)
+```
+
+
+
+#### Explorar a tabela
+
+Comece pela estrutura, pelos nomes e por uma amostra das linhas.
+
+
+``` sourceCode
+names(pa)
+str(pa)
+head(pa, 3)
+```
+
+
+Selecione apenas os campos necessários para reduzir a complexidade:
+
+
+``` sourceCode
+pa_min <- pa |>
+  select(
+    PA_CODUNI,
+    PA_GESTAO,
+    PA_CMP,
+    PA_PROC_ID,
+    PA_DOCORIG,
+    PA_QTDAPR,
+    PA_VALAPR
+  )
+```
+
+
+Verifique a unidade de registro e os valores:
+
+
+``` sourceCode
+pa_min |>
+  summarise(
+    linhas = n(),
+    estabelecimentos = n_distinct(PA_CODUNI),
+    procedimentos = n_distinct(PA_PROC_ID),
+    quantidade = sum(PA_QTDAPR, na.rm = TRUE),
+    valor_aprovado = sum(PA_VALAPR, na.rm = TRUE)
+  )
+```
+
+
+
+#### Tipificar usando o dicionário
+
+Segundo o layout do SIA, os identificadores e competências são campos de caracteres. Preservá-los como texto evita a perda de zeros à esquerda.
+
+
+``` sourceCode
+pa_min <- pa_min |>
+  mutate(
+    across(
+      c(PA_CODUNI, PA_GESTAO, PA_CMP, PA_PROC_ID, PA_DOCORIG),
+      as.character
+    ),
+    PA_QTDAPR = as.numeric(PA_QTDAPR),
+    PA_VALAPR = as.numeric(PA_VALAPR)
+  )
+```
+
+
+Adicione descrições mínimas como atributos:
+
+
+``` sourceCode
+attr(pa_min$PA_CODUNI, "label") <- "Código CNES do estabelecimento"
+attr(pa_min$PA_PROC_ID, "label") <- "Código do procedimento ambulatorial"
+attr(pa_min$PA_VALAPR, "label") <- "Valor aprovado da produção"
+```
+
+
+Consulte os metadados adicionados:
+
+
+``` sourceCode
+attr(pa_min$PA_VALAPR, "label")
+```
+
+
+> Na prática, recomenda-se manter um dicionário tabular versionado, com uma linha por variável e colunas para tipo, descrição, domínio, fonte e vigência.
+
+
+#### Baixar outro DBC para integração
+
+Agora será baixado o cadastro de estabelecimentos do CNES para a mesma UF e competência.
+
+
+``` sourceCode
+url_cnes <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "CNES/200508_/Dados/ST/STAC2501.dbc"
+)
+
+curl_download(url_cnes, "STAC2501.dbc")
+cnes <- read.dbc("STAC2501.dbc")
+```
+
+
+Selecione uma linha por estabelecimento:
+
+
+``` sourceCode
+cnes_min <- cnes |>
+  transmute(
+    CNES = as.character(CNES),
+    CODUFMUN = as.character(CODUFMUN),
+    TPGESTAO = as.character(TPGESTAO)
+  ) |>
+  distinct(CNES, .keep_all = TRUE)
+```
+
+
+
+#### Integrar SIA e CNES
+
+O campo `PA_CODUNI` do SIA corresponde ao código `CNES` do cadastro de estabelecimentos.
+
+
+``` sourceCode
+pa_cnes <- pa_min |>
+  left_join(
+    cnes_min,
+    by = c("PA_CODUNI" = "CNES")
+  )
+```
+
+
+Verifique a qualidade da junção:
+
+
+``` sourceCode
+pa_cnes |>
+  summarise(
+    linhas = n(),
+    sem_cnes = sum(is.na(CODUFMUN)),
+    percentual_sem_cnes = mean(is.na(CODUFMUN)) * 100
+  )
+```
+
+
+> Uma junção não deve ser considerada correta apenas porque o código executou. Verifique duplicidades na chave, perdas de correspondência e compatibilidade temporal.
+
+
+#### Resumir a produção
+
+Calcule quantidade e valor aprovado por procedimento:
+
+
+``` sourceCode
+resumo_pa <- pa_cnes |>
+  group_by(PA_PROC_ID) |>
+  summarise(
+    estabelecimentos = n_distinct(PA_CODUNI),
+    quantidade_aprovada = sum(PA_QTDAPR, na.rm = TRUE),
+    valor_aprovado = sum(PA_VALAPR, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(desc(valor_aprovado))
+```
+
+
+Visualize os procedimentos com maior valor aprovado:
+
+
+``` sourceCode
+head(resumo_pa, 10)
+```
+
+
+
+#### Repetir o fluxo com o SIH
+
+O mesmo padrão pode ser aplicado às internações:
+
+
+``` sourceCode
+url_sih <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIHSUS/200801_/Dados/RDAC2501.dbc"
+)
+
+curl_download(url_sih, "RDAC2501.dbc")
+rd <- read.dbc("RDAC2501.dbc")
+```
+
+
+Resumo hospitalar mínimo:
+
+
+``` sourceCode
+rd |>
+  summarise(
+    aih = n_distinct(N_AIH),
+    internacoes = n(),
+    permanencia = sum(DIAS_PERM, na.rm = TRUE),
+    valor_total = sum(VAL_TOT, na.rm = TRUE),
+    obitos = sum(MORTE == 1, na.rm = TRUE)
+  )
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Volumetria e temporalidade
+
+
+#### Leitura da lista FTP
+
+A lista fornecida é uma fotografia do catálogo em 15 de agosto de 2026. Ela agrega arquivos por UF, sistema, versão, subsistema e ano de competência.
+
+
+``` sourceCode
+catalogo <- readr::read_csv(
+  "lista_ftp_sus.csv",
+  show_col_types = FALSE
+)
+```
+
+
+
+#### Panorama dos principais sistemas
+
+| Sistema | Período observado | Subsistemas | Arquivos DBC | Volume compactado | Registros catalogados |
+|---------|------------------:|------------:|-------------:|------------------:|----------------------:|
+| SIA     |         1994-2026 |          14 |       58.572 |          429,6 GB |          7,03 bilhões |
+| SIH     |         1992-2026 |           6 |       31.937 |           83,1 GB |           1,25 bilhão |
+| CNES    |         2005-2026 |          18 |       80.191 |           53,3 GB |         619,0 milhões |
+| SINASC  |         1994-2024 |           2 |        1.666 |           10,6 GB |          33,8 milhões |
+| SIM     |         1996-2024 |           6 |          940 |           10,0 GB |          32,8 milhões |
+| SINAN   |         1999-2025 |          45 |          741 |            2,6 GB |          23,5 milhões |
+
+> Os totais de registros refletem o preenchimento disponível no catálogo. Valor zero pode significar contagem ainda não calculada, e não ausência de registros no arquivo.
+
+
+#### Subsistemas ilustrativos
+
+| Sistema | Subsistema | Temporalidade típica | Arquivos DBC | Volume compactado | Registros catalogados |
+|---------|------------|----------------------|-------------:|------------------:|----------------------:|
+| SIA     | PA         | Mensal por UF        |       10.792 |          214,2 GB |          3,76 bilhões |
+| SIH     | RD         | Mensal por UF        |       11.157 |           25,4 GB |          83,4 milhões |
+| SIH     | SP         | Mensal por UF        |        9.412 |           56,4 GB |           1,16 bilhão |
+| CNES    | ST         | Mensal por UF        |        6.779 |            3,3 GB |          31,0 milhões |
+| SIM     | DO         | Anual por UF         |          812 |            9,6 GB |          31,7 milhões |
+| SINASC  | DN         | Anual por UF         |        1.558 |           10,4 GB |          33,8 milhões |
+
+Essas diferenças alteram a estratégia analítica:
+
+- arquivos mensais exigem controle de competência;
+- arquivos anuais podem ter defasagem de consolidação;
+- subsistemas com várias linhas por evento não podem ser somados sem definir a unidade de análise;
+- grande quantidade de arquivos aumenta a importância de nomes padronizados e catálogos.
+
+
+#### Reproduzir a agregação com `dplyr`
+
+O SQL usado para produzir a lista pode ser representado no R:
+
+
+``` sourceCode
+resumo_ftp <- catalogo |>
+  transmute(
+    sg_uf,
+    sg_sistema = toupper(sg_sistema),
+    sg_versao = toupper(sg_versao),
+    sg_subsistema = toupper(sg_subsistema),
+    ano_competencia = as.integer(ano_competencia),
+    qt_bytes_ftp,
+    qt_registro_dbc,
+    dbc,
+    no_dbc_origem
+  ) |>
+  group_by(
+    sg_uf,
+    sg_sistema,
+    sg_versao,
+    sg_subsistema,
+    ano_competencia
+  ) |>
+  summarise(
+    qt_bytes_ftp = sum(qt_bytes_ftp, na.rm = TRUE),
+    qt_registro_dbc = sum(qt_registro_dbc, na.rm = TRUE),
+    dbc = sum(dbc, na.rm = TRUE),
+    no_dbc_origem = paste(no_dbc_origem, collapse = " "),
+    .groups = "drop"
+  ) |>
+  arrange(
+    sg_uf,
+    sg_sistema,
+    sg_versao,
+    sg_subsistema,
+    ano_competencia
+  )
+```
+
+
+Resumo por sistema:
+
+
+``` sourceCode
+catalogo |>
+  group_by(sg_sistema) |>
+  summarise(
+    primeiro_ano = min(ano_competencia, na.rm = TRUE),
+    ultimo_ano = max(ano_competencia, na.rm = TRUE),
+    arquivos = sum(dbc, na.rm = TRUE),
+    gigabytes = sum(qt_bytes_ftp, na.rm = TRUE) / 1e9,
+    registros = sum(qt_registro_dbc, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(desc(gigabytes))
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Metadados aplicados à análise
+
+
+#### Dicionário de dados mínimo
+
+Um dicionário analítico pode ser representado como uma tabela:
+
+
+``` sourceCode
+dicionario_pa <- tibble::tribble(
+  ~campo,       ~tipo,       ~descricao,
+  "PA_CODUNI", "character", "Código CNES do estabelecimento",
+  "PA_CMP",    "character", "Competência de realização",
+  "PA_PROC_ID", "character", "Código do procedimento",
+  "PA_QTDAPR", "numeric",   "Quantidade aprovada",
+  "PA_VALAPR", "numeric",   "Valor aprovado"
+)
+```
+
+
+Esse objeto pode orientar validações automáticas:
+
+
+``` sourceCode
+setdiff(dicionario_pa$campo, names(pa))
+```
+
+
+Resultado vazio significa que todos os campos esperados estão presentes.
+
+
+#### Chaves e granularidade
+
+Uma coluna não é necessariamente uma chave apenas porque se chama identificador.
+
+Exemplos:
+
+| Fonte   | Possível identificador                | Cuidado                                                         |
+|---------|---------------------------------------|-----------------------------------------------------------------|
+| SIA PA  | `PA_CODUNI` + `PA_CMP` + `PA_PROC_ID` | Pode haver várias linhas por instrumento e atributos adicionais |
+| SIH RD  | `N_AIH`                               | Reapresentações e regras do sistema devem ser verificadas       |
+| SIH SP  | `SP_NAIH`                             | Vários atos profissionais por AIH                               |
+| CNES ST | `CNES` por competência                | Cadastro varia no tempo                                         |
+| SIGTAP  | Procedimento por competência          | Atributos podem mudar mensalmente                               |
+
+Antes de um `left_join()`, teste a unicidade da tabela que será adicionada:
+
+
+``` sourceCode
+cnes_min |>
+  count(CNES) |>
+  filter(n > 1)
+```
+
+
+
+#### Temporalidade dos metadados
+
+O vínculo deve respeitar a competência sempre que a dimensão variar no tempo.
+
+Exemplo conceitual:
+
+
+``` sourceCode
+dados |>
+  left_join(
+    sigtap,
+    by = c(
+      "procedimento" = "co_procedimento",
+      "competencia" = "dt_competencia"
+    )
+  )
+```
+
+
+Usar apenas o código pode atribuir ao registro histórico uma descrição, valor ou regra de uma competência diferente.
+
+------------------------------------------------------------------------
+
+
+
+### Economia da saúde com dados do SUS
+
+
+#### Produção não é custo
+
+Os campos financeiros de SIA e SIH são fundamentais para analisar o financiamento registrado nos sistemas, mas não representam necessariamente o custo econômico integral do cuidado.
+
+É necessário distinguir:
+
+| Conceito                                              | Exemplo de fonte                     |
+|-------------------------------------------------------|--------------------------------------|
+| Quantidade produzida ou aprovada                      | SIA e SIH                            |
+| Valor aprovado ou pago segundo regras administrativas | SIA e SIH                            |
+| Valor de referência do procedimento                   | SIGTAP                               |
+| Preço observado em compras públicas                   | BPS                                  |
+| Teto regulatório de medicamento                       | CMED/Anvisa                          |
+| Custo apurado pelo prestador                          | Sistema de custos                    |
+| Despesa orçamentária                                  | Sistemas orçamentários e financeiros |
+
+
+#### Aplicações do SIA
+
+O SIA pode apoiar estudos de:
+
+- volume de procedimentos por estabelecimento e gestor;
+- concentração territorial da oferta;
+- evolução de quantidades e valores aprovados;
+- participação de diferentes tipos de financiamento;
+- produção de medicamentos, OPM e procedimentos especializados;
+- acesso ambulatorial segundo município de atendimento.
+
+Exemplo de valor médio administrativo por unidade aprovada:
+
+
+``` sourceCode
+resumo_pa |>
+  mutate(
+    valor_medio_aprovado = if_else(
+      quantidade_aprovada > 0,
+      valor_aprovado / quantidade_aprovada,
+      NA_real_
+    )
+  )
+```
+
+
+> Esse quociente não deve ser chamado automaticamente de custo médio.
+
+
+#### Aplicações do SIH
+
+O SIH permite analisar:
+
+- internações e permanência;
+- valores hospitalares e profissionais;
+- utilização de UTI;
+- procedimentos realizados;
+- mortalidade hospitalar registrada;
+- variações entre estabelecimentos e territórios.
+
+Exemplo:
+
+
+``` sourceCode
+rd |>
+  group_by(PROC_REA) |>
+  summarise(
+    internacoes = n(),
+    permanencia_media = mean(DIAS_PERM, na.rm = TRUE),
+    valor_medio_aih = mean(VAL_TOT, na.rm = TRUE),
+    mortalidade = mean(MORTE == 1, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+
+#### BPS, CMED e SIGTAP
+
+As três fontes respondem a perguntas diferentes:
+
+- **BPS:** por quanto determinados itens foram adquiridos por instituições?
+- **CMED:** quais limites regulatórios se aplicam aos preços de medicamentos?
+- **SIGTAP:** quais atributos e valores de referência estão associados aos procedimentos do SUS?
+
+Não existe equivalência automática entre código CATMAT, registro sanitário, apresentação farmacêutica e código SIGTAP. Qualquer relacionamento deve ser documentado e validado.
+
+Consulta mínima à API do BPS:
+
+
+``` sourceCode
+library(httr2)
+
+bps <- request(
+  "https://apidadosabertos.saude.gov.br/v1/economia-da-saude/bps"
+) |>
+  req_url_query(
+    codigoCatmat = "405899",
+    anoCompra = 2025,
+    pagina = 1,
+    tamanhoPagina = 10
+  ) |>
+  req_perform() |>
+  resp_body_json(simplifyVector = TRUE)
+```
+
+
+Comece inspecionando a estrutura, pois APIs podem alterar nomes e níveis da resposta:
+
+
+``` sourceCode
+str(bps, max.level = 2)
+```
+
+
+
+#### Papel do CNES
+
+O CNES acrescenta contexto à produção:
+
+- localização do estabelecimento;
+- esfera e tipo de gestão;
+- natureza jurídica;
+- leitos;
+- equipamentos;
+- profissionais;
+- serviços e habilitações.
+
+Isso permite comparar produção, valores e capacidade instalada, desde que todas as fontes sejam alinhadas pela competência.
+
+------------------------------------------------------------------------
+
+
+
+### Qualidade e validação
+
+
+#### Verificações mínimas após a leitura
+
+
+``` sourceCode
+stopifnot(nrow(pa) > 0)
+stopifnot(all(c("PA_CODUNI", "PA_PROC_ID") %in% names(pa)))
+stopifnot(all(nchar(pa$PA_CODUNI) == 7 | is.na(pa$PA_CODUNI)))
+```
+
+
+
+#### Competência de processamento e ocorrência
+
+Alguns sistemas distinguem:
+
+- competência de processamento;
+- competência de realização;
+- data do evento;
+- data de atualização ou disseminação.
+
+Essas datas não devem ser tratadas como equivalentes sem consultar o layout.
+
+
+#### Valores ausentes e códigos especiais
+
+Valores como `0`, `9`, `99`, espaços e texto vazio podem representar categorias diferentes de ausência. A conversão automática para `NA` pode apagar significado.
+
+
+``` sourceCode
+pa_min |>
+  count(PA_DOCORIG, sort = TRUE)
+```
+
+
+Consulte o domínio antes de recodificar.
+
+
+#### Revisões e arquivos recentes
+
+Competências recentes podem estar incompletas ou sofrer substituição. Registre:
+
+- data do download;
+- endereço da fonte;
+- nome e tamanho do arquivo;
+- competência;
+- versão do dicionário;
+- código usado no processamento.
+
+
+#### Privacidade e uso responsável
+
+Mesmo em bases públicas, combinações de variáveis podem aumentar o risco de identificação indireta. Evite divulgar tabelas muito detalhadas com pequenas contagens e avalie a finalidade, a necessidade e o contexto da publicação.
+
+------------------------------------------------------------------------
+
+
+
+### Exercício integrado
+
+Utilize os exemplos anteriores para responder:
+
+- Quantos procedimentos ambulatoriais foram aprovados no Acre em janeiro de 2025?
+- Quantos estabelecimentos aparecem no PA?
+- Qual proporção foi encontrada no CNES da mesma competência?
+- Quais procedimentos concentraram os maiores valores aprovados?
+- O ranking muda quando se utiliza quantidade em vez de valor?
+- Quais limitações impedem interpretar `PA_VALAPR` como custo econômico?
+
+Estrutura mínima da resposta:
+
+
+``` sourceCode
+resultado <- pa_cnes |>
+  group_by(PA_PROC_ID) |>
+  summarise(
+    estabelecimentos = n_distinct(PA_CODUNI),
+    quantidade = sum(PA_QTDAPR, na.rm = TRUE),
+    valor = sum(PA_VALAPR, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(desc(valor))
+```
+
+
+------------------------------------------------------------------------
+
+
+### Síntese
+
+Uma análise intermediária de dados do SUS exige mais do que importar arquivos:
+
+1.  compreender a finalidade do sistema;
+2.  identificar a unidade de registro;
+3.  selecionar a competência adequada;
+4.  consultar o dicionário correspondente;
+5.  preservar códigos como texto;
+6.  validar chaves antes das junções;
+7.  integrar dimensões temporalmente compatíveis;
+8.  distinguir produção, valor administrativo, preço e custo;
+9.  documentar origem, versão e limitações.
+
+> O código pode ser curto. A interpretação precisa ser rigorosa.
+
+------------------------------------------------------------------------
+
+
+
+## Referências
+
+BRASIL. Ministério da Saúde. *Comissão Intergestores Tripartite*. Disponível em: <https://www.gov.br/saude/pt-br/acesso-a-informacao/gestao-do-sus/articulacao-interfederativa/cit>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *Portal de Dados Abertos do SUS*. Disponível em: <https://dadosabertos.saude.gov.br/>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. DATASUS. *CNES: Informe Técnico 2017-06*. Brasília, DF: Ministério da Saúde, 2017.
+
+BRASIL. Ministério da Saúde. DATASUS. *Informe Técnico do Sistema de Informações Ambulatoriais do SUS*. Brasília, DF: Ministério da Saúde, 2019.
+
+BRASIL. Ministério da Saúde. DATASUS. *Informe Técnico do Sistema de Informações Hospitalares do SUS*. Brasília, DF: Ministério da Saúde, 2016.
+
+BRASIL. Ministério da Saúde. *Sistema de Informações Ambulatoriais*. Disponível em: <https://www.gov.br/saude/pt-br/composicao/saes/samu-192/sistemas>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Saúde Suplementar. *Dados abertos*. Disponível em: <https://www.gov.br/ans/pt-br/acesso-a-informacao/perfil-do-setor/dados-abertos-1>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Saúde Suplementar. *Quem somos*. Disponível em: <https://www.gov.br/ans/pt-br/acesso-a-informacao/institucional/quem-somos-1>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Vigilância Sanitária. *Câmara de Regulação do Mercado de Medicamentos*. Disponível em: <https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed>. Acesso em: 17 ago. 2026.
+
+
+
+

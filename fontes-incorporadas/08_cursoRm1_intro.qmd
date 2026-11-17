@@ -1,0 +1,5910 @@
+## Microdados do SUS com R para Avaliação Econômica
+
+#### Introdução ao R
+
+
+Ocultar menu
+
+
+**Objetivo do curso:** Capacitar participantes a extrair, validar, tratar e analisar microdados do SUS com R, integrando fontes de custos/preços e técnicas aplicadas à avaliação econômica.
+
+
+## Introdução ao R
+
+
+### Ementa
+
+- O que é a linguagem de programação R?
+- Em quais ambientes ela pode ser utilizada?
+  - Prompt de comando;
+  - RStudio;
+  - Google Colab.
+- O que são objetos e funções?
+- O que são pacotes e bibliotecas?
+
+------------------------------------------------------------------------
+
+
+### Fundamentos
+
+
+#### O que é o R?
+
+A linguagem R foi criada nos anos 1990 pelos professores de Estatística da Universidade de Auckland, na Nova Zelândia, **Ross Ihaka** e **Robert Gentleman**. Seu objetivo era reduzir o trabalho de programação necessário para a análise estatística de dados.
+
+O ambiente R teve sua primeira versão pública, a **R 1.0.0**, lançada em fevereiro de 2000.
+
+> R é um ambiente e uma linguagem de programação idealizados para a análise de dados.
+
+
+#### CRAN e o ecossistema R
+
+A **Comprehensive R Archive Network (CRAN)** é uma rede mundial de servidores que armazenam versões atualizadas do R, de seus pacotes e das respectivas documentações.
+
+Principais funções da CRAN:
+
+- disponibilizar o R para **Linux**, **Windows** e **macOS**;
+- armazenar milhares de pacotes estatísticos;
+- disponibilizar a documentação dos pacotes;
+- realizar verificações automáticas nos pacotes publicados.
+
+**Download do R:**  
+<https://cran.r-project.org/>
+
+
+#### Pacotes e bibliotecas
+
+Os pacotes são conjuntos reutilizáveis de funções, dados e documentações que expandem as capacidades básicas da linguagem R.
+
+
+##### Pacote (*package*)
+
+É a unidade fundamental de código distribuível no R. Enquanto o **R Base** fornece as funcionalidades essenciais da linguagem, os pacotes acrescentam ferramentas específicas para tarefas como:
+
+- manipulação de dados;
+- criação de gráficos;
+- análises estatísticas;
+- modelagem;
+- elaboração de relatórios.
+
+
+##### CRAN
+
+É a rede oficial de servidores que armazena, verifica e disponibiliza pacotes validados para instalação.
+
+
+##### Biblioteca (*library*)
+
+É o diretório local do sistema operacional no qual os pacotes instalados ficam armazenados.
+
+
+##### Comandos principais
+
+**Instalar um pacote**
+
+Baixa e instala um pacote da CRAN no computador. Essa operação requer acesso à internet.
+
+
+``` sourceCode
+install.packages("nome_do_pacote")
+```
+
+
+A instalação normalmente precisa ser realizada apenas uma vez.
+
+**Carregar um pacote**
+
+Ativa um pacote instalado para uso na sessão atual do R.
+
+
+``` sourceCode
+library(nome_do_pacote)
+```
+
+
+O pacote precisa ser carregado novamente sempre que uma nova sessão do R for iniciada.
+
+
+
+#### RStudio como interface gráfica
+
+O **RStudio** é um ambiente integrado de desenvolvimento — *Integrated Development Environment* (**IDE**) — para programação em R.
+
+Ele oferece uma interface gráfica que facilita:
+
+- a criação e edição de códigos;
+- a execução de comandos;
+- o gerenciamento de objetos;
+- a visualização de gráficos;
+- o acesso à documentação;
+- a organização de arquivos e projetos.
+
+**Download do RStudio:**  
+<https://posit.co/download/rstudio-desktop/>
+
+
+#### RStudio: quadrantes
+
+A interface padrão do RStudio é dividida em quatro painéis principais.
+
+
+##### 1. Source — superior esquerdo
+
+Área utilizada para escrever, editar e salvar scripts em R antes de executá-los.
+
+
+##### 2. Console — inferior esquerdo
+
+Área na qual os comandos são executados pelo R. Também exibe resultados, avisos, mensagens e erros.
+
+
+##### 3. Environment e History — superior direito
+
+- **Environment:** apresenta os objetos, variáveis e bases de dados disponíveis na sessão.
+- **History:** mostra o histórico dos comandos executados.
+
+
+##### 4. Files, Plots, Packages e Help — inferior direito
+
+Reúne diferentes abas para:
+
+- navegar pelos arquivos;
+- visualizar gráficos;
+- gerenciar pacotes;
+- consultar a documentação de ajuda;
+- visualizar arquivos e relatórios.
+
+
+
+#### Google Colab como interface gráfica
+
+O **Google Colaboratory**, ou **Google Colab**, é um serviço do Google Research voltado à programação em notebooks.
+
+Por meio de uma máquina virtual, permite escrever e executar códigos diretamente no navegador, sem a necessidade de configuração prévia no computador.
+
+O Colab é especialmente utilizado em:
+
+- análise de dados;
+- aprendizado de máquina;
+- pesquisa científica;
+- educação.
+
+Embora seja configurado inicialmente para Python, também permite a utilização da linguagem R.
+
+**Acesso:**  
+<https://colab.research.google.com/>
+
+
+#### Como configurar o Google Colab para R
+
+Siga o caminho:
+
+> **Google Drive → Novo → Mais → Google Colaboratory → Ambiente de execução → Alterar o tipo de ambiente de execução → R → Salvar**
+
+
+#### Colab como caderno de notas
+
+No Google Colab, o ambiente de trabalho é chamado de **notebook**. Ele é organizado em células modulares de texto e código.
+
+
+##### Célula de texto
+
+Utiliza Markdown ou HTML para adicionar:
+
+- títulos;
+- descrições;
+- explicações;
+- listas;
+- links;
+- notas narrativas.
+
+Essa célula não executa comandos de programação.
+
+
+##### Célula de código
+
+Armazena códigos executáveis na linguagem configurada, como Python ou R.
+
+Os resultados, tabelas e gráficos são apresentados logo abaixo da célula após sua execução.
+
+
+##### Como executar as células
+
+- **Executar uma célula:** clique no botão ▶ ao lado da célula ou pressione `Shift + Enter`.
+- **Executar todo o notebook:** acesse **Ambiente de execução → Executar tudo** ou pressione `Ctrl + F9`.
+
+------------------------------------------------------------------------
+
+
+
+
+### Matemática e lógica
+
+
+#### Variáveis e operações matemáticas
+
+No R, uma variável armazena um valor na memória. O operador de atribuição mais utilizado é `<-`.
+
+
+##### Criando variáveis
+
+
+``` sourceCode
+x <- 10
+y <- 5
+```
+
+
+- **Atribuição:** utiliza `<-` para armazenar um valor em um objeto.
+- **Visualização:** no RStudio, o objeto aparece no painel **Environment**.
+- **Consulta:** digite o nome do objeto no Console para visualizar seu valor.
+
+
+``` sourceCode
+x
+```
+
+
+
+##### Operações matemáticas
+
+| Operação      | Operador | Exemplo | Resultado |
+|---------------|:--------:|--------:|----------:|
+| Soma          |   `+`    | `5 + 3` |       `8` |
+| Subtração     |   `-`    | `5 - 3` |       `2` |
+| Multiplicação |   `*`    | `5 * 3` |      `15` |
+| Divisão       |   `/`    | `5 / 3` |  `1.6667` |
+| Potenciação   |   `^`    | `5 ^ 3` |     `125` |
+
+
+##### Operações com variáveis
+
+
+``` sourceCode
+soma_xy <- x + y
+```
+
+
+Também é possível atualizar o valor de uma variável:
+
+
+``` sourceCode
+x <- x + 2
+```
+
+
+
+
+#### Operadores lógicos e de comparação
+
+Os operadores lógicos combinam ou invertem condições. O resultado dessas operações é um valor booleano:
+
+- `TRUE` — verdadeiro;
+- `FALSE` — falso.
+
+
+##### Operadores lógicos
+
+| Operador | Significado | Descrição                            |
+|:--------:|-------------|--------------------------------------|
+|   `&`    | E (*AND*)   | Compara os elementos de dois vetores |
+|   `&&`   | E restrito  | Avalia apenas o primeiro elemento    |
+|   `\|`   | OU (*OR*)   | Compara os elementos de dois vetores |
+|  `\|\|`  | OU restrito | Avalia apenas o primeiro elemento    |
+|   `!`    | NÃO (*NOT*) | Inverte o valor lógico               |
+
+
+##### Operadores de comparação
+
+| Operador | Significado      |
+|:--------:|------------------|
+|   `==`   | Igual a          |
+|   `!=`   | Diferente de     |
+|   `>`    | Maior que        |
+|   `<`    | Menor que        |
+|   `>=`   | Maior ou igual a |
+|   `<=`   | Menor ou igual a |
+
+
+##### Exemplos
+
+**Combinar condições com `&`:**
+
+
+``` sourceCode
+idade >= 18 & tem_carteira == TRUE
+```
+
+
+**Verificar alternativas com `|`:**
+
+
+``` sourceCode
+dia == "sábado" | dia == "domingo"
+```
+
+
+**Inverter um resultado com `!`:**
+
+
+``` sourceCode
+!is.na(dados)
+```
+
+
+
+
+#### Condicionais
+
+As estruturas condicionais permitem que o código tome decisões com base em testes que resultam em `TRUE` ou `FALSE`.
+
+Os principais recursos são:
+
+- `if`;
+- `else`;
+- `else if`;
+- `ifelse()`.
+
+
+##### `if`
+
+Executa um bloco de código quando a condição é verdadeira.
+
+
+##### `else`
+
+Define o que será executado quando a condição do `if` for falsa.
+
+
+##### `else if`
+
+Permite verificar uma nova condição quando a condição anterior é falsa.
+
+
+##### `ifelse()`
+
+Função vetorizada utilizada para aplicar uma condição a vários elementos, como os valores de uma coluna.
+
+
+##### Exemplo
+
+
+``` sourceCode
+nota <- 7.5
+
+if (nota >= 6) {
+  print("Aprovado")
+} else {
+  print("Reprovado")
+}
+```
+
+
+
+
+#### Estruturas de repetição
+
+As estruturas de repetição executam um bloco de código várias vezes. No R, os principais recursos são:
+
+- `for`;
+- `while`;
+- `repeat`;
+- família de funções `apply`.
+
+> Sempre que possível, prefira operações vetorizadas. Elas costumam produzir códigos mais curtos e legíveis.
+
+
+##### `for`
+
+Executa um bloco de código para cada elemento de uma sequência ou vetor.
+
+
+``` sourceCode
+procedimentos <- c("Consulta", "Exame", "Cirurgia")
+
+for (procedimento in procedimentos) {
+  print(procedimento)
+}
+```
+
+
+A variável `procedimento` recebe um elemento diferente do vetor em cada repetição.
+
+Outro exemplo:
+
+
+``` sourceCode
+for (numero in 1:5) {
+  print(numero)
+}
+```
+
+
+
+##### Armazenando resultados de um `for`
+
+Antes de iniciar a repetição, recomenda-se criar um objeto com o tamanho necessário.
+
+
+``` sourceCode
+valores <- c(100, 200, 300)
+valores_reajustados <- numeric(length(valores))
+
+for (i in seq_along(valores)) {
+  valores_reajustados[i] <- valores[i] * 1.10
+}
+
+valores_reajustados
+# [1] 110 220 330
+```
+
+
+A função `seq_along()` gera uma sequência segura de posições para percorrer um vetor.
+
+
+##### `while`
+
+Executa um bloco enquanto uma condição permanecer verdadeira.
+
+
+``` sourceCode
+contador <- 1
+
+while (contador <= 5) {
+  print(contador)
+  contador <- contador + 1
+}
+```
+
+
+> A variável usada na condição deve ser atualizada dentro do bloco. Caso contrário, pode ocorrer uma repetição infinita.
+
+
+##### `repeat`
+
+Executa um bloco indefinidamente, até que uma condição de saída seja alcançada com `break`.
+
+
+``` sourceCode
+contador <- 1
+
+repeat {
+  print(contador)
+
+  contador <- contador + 1
+
+  if (contador > 5) {
+    break
+  }
+}
+```
+
+
+
+##### `break`
+
+Interrompe imediatamente a estrutura de repetição.
+
+
+``` sourceCode
+for (numero in 1:10) {
+  if (numero == 6) {
+    break
+  }
+
+  print(numero)
+}
+```
+
+
+Nesse exemplo, a repetição termina quando `numero` é igual a `6`.
+
+
+##### `next`
+
+Interrompe somente a repetição atual e avança para o próximo elemento.
+
+
+``` sourceCode
+for (numero in 1:5) {
+  if (numero == 3) {
+    next
+  }
+
+  print(numero)
+}
+```
+
+
+O número `3` não será exibido.
+
+
+##### Operações vetorizadas
+
+Muitas repetições podem ser substituídas por operações aplicadas diretamente a vetores.
+
+Com repetição:
+
+
+``` sourceCode
+valores <- c(10, 20, 30)
+dobro <- numeric(length(valores))
+
+for (i in seq_along(valores)) {
+  dobro[i] <- valores[i] * 2
+}
+```
+
+
+Com operação vetorizada:
+
+
+``` sourceCode
+dobro <- valores * 2
+```
+
+
+As duas abordagens produzem o mesmo resultado:
+
+
+``` sourceCode
+dobro
+# [1] 20 40 60
+```
+
+
+
+##### Família `apply`
+
+As funções da família `apply` executam uma função repetidamente sobre elementos ou dimensões de um objeto.
+
+| Função     | Aplicação                                              |
+|------------|--------------------------------------------------------|
+| `apply()`  | Linhas ou colunas de matrizes                          |
+| `lapply()` | Elementos de uma lista; retorna uma lista              |
+| `sapply()` | Elementos de uma lista; simplifica o resultado         |
+| `vapply()` | Semelhante a `sapply()`, mas exige o tipo do resultado |
+| `tapply()` | Grupos definidos por um fator                          |
+
+
+###### `apply()`
+
+Calcular a média de cada coluna de uma matriz:
+
+
+``` sourceCode
+matriz <- matrix(1:9, nrow = 3)
+
+apply(
+  matriz,
+  MARGIN = 2,
+  FUN = mean
+)
+```
+
+
+Em `MARGIN`:
+
+- `1` representa linhas;
+- `2` representa colunas.
+
+
+###### `lapply()`
+
+Aplicar `mean()` a cada elemento de uma lista:
+
+
+``` sourceCode
+valores <- list(
+  grupo_a = c(10, 20, 30),
+  grupo_b = c(40, 50, 60)
+)
+
+lapply(valores, mean)
+```
+
+
+
+###### `sapply()`
+
+
+``` sourceCode
+sapply(valores, mean)
+```
+
+
+Nesse caso, o resultado é simplificado para um vetor.
+
+
+###### `vapply()`
+
+
+``` sourceCode
+vapply(
+  valores,
+  FUN = mean,
+  FUN.VALUE = numeric(1)
+)
+```
+
+
+O argumento `FUN.VALUE` determina que cada repetição deve retornar exatamente um valor numérico.
+
+
+
+##### Exemplo com arquivos do SUS
+
+Uma estrutura `for` pode percorrer arquivos mensais disseminados pelo Ministério da Saúde.
+
+
+``` sourceCode
+arquivos <- c(
+  "PAAC2501.dbc",
+  "PAAC2502.dbc",
+  "PAAC2503.dbc"
+)
+
+quantidade_linhas <- numeric(length(arquivos))
+
+for (i in seq_along(arquivos)) {
+  dados <- read.dbc::read.dbc(arquivos[i])
+  quantidade_linhas[i] <- nrow(dados)
+}
+```
+
+
+Organize o resultado em um data frame:
+
+
+``` sourceCode
+resumo <- data.frame(
+  arquivo = arquivos,
+  linhas = quantidade_linhas
+)
+
+resumo
+```
+
+
+A competência pode ser extraída do nome do arquivo:
+
+
+``` sourceCode
+resumo$competencia <- substr(
+  resumo$arquivo,
+  start = 5,
+  stop = 8
+)
+```
+
+
+
+##### Escolha da estrutura
+
+| Situação                                     | Recurso indicado    |
+|----------------------------------------------|---------------------|
+| Percorrer uma sequência conhecida            | `for`               |
+| Repetir enquanto uma condição for verdadeira | `while`             |
+| Repetir até uma interrupção explícita        | `repeat`            |
+| Interromper completamente a repetição        | `break`             |
+| Ignorar somente a repetição atual            | `next`              |
+| Executar cálculo diretamente em um vetor     | Operação vetorizada |
+| Aplicar uma função a listas ou matrizes      | Família `apply`     |
+
+------------------------------------------------------------------------
+
+
+
+
+### Objetos e funções
+
+> “Para entender os cálculos em R, dois slogans são úteis:
+>
+> - Tudo o que existe é um objeto.
+> - Tudo o que acontece é uma chamada de função.”
+>
+> — **John Chambers**, criador da linguagem S, que serviu de base para a criação do R.
+
+Em termos práticos:
+
+> Armazenamos as informações em **objetos** e realizamos as análises por meio de **funções**.
+
+
+#### Função
+
+Uma função é um bloco reutilizável de código criado para realizar uma tarefa específica.
+
+Ela pode:
+
+1.  receber dados de entrada, chamados de **argumentos** ou **parâmetros**;
+2.  executar uma ou mais operações;
+3.  retornar um resultado.
+
+As funções facilitam a análise de dados e evitam a repetição de código.
+
+
+##### Tipos de funções em R
+
+**Funções nativas**
+
+Já estão disponíveis no R e executam tarefas comuns.
+
+
+``` sourceCode
+mean()
+data.frame()
+sum()
+```
+
+
+**Funções de pacotes**
+
+São acrescentadas por pacotes externos, ampliando as funcionalidades do R nas áreas de estatística, gráficos, manipulação de dados e modelagem.
+
+**Funções personalizadas**
+
+São criadas pelo próprio usuário para automatizar tarefas ou rotinas específicas.
+
+
+##### Estrutura de uma função personalizada
+
+Uma função personalizada possui:
+
+- **nome:** identificador atribuído à função;
+- **`function`:** palavra-chave usada para definir a função;
+- **argumentos:** valores de entrada indicados entre parênteses;
+- **corpo:** conjunto de instruções delimitado por chaves;
+- **retorno:** resultado produzido pela função.
+
+
+##### Exemplo
+
+
+``` sourceCode
+calcular_media <- function(x) {
+  resultado <- mean(x)
+  return(resultado)
+}
+```
+
+
+Utilização da função:
+
+
+``` sourceCode
+notas <- c(7, 8, 9)
+
+calcular_media(notas)
+```
+
+
+
+
+#### Funções matemáticas
+
+O R disponibiliza funções nativas para realizar operações matemáticas comuns.
+
+| Função        | Descrição                              | Exemplo        |
+|---------------|----------------------------------------|----------------|
+| `abs()`       | Calcula o valor absoluto               | `abs(-10)`     |
+| `sqrt()`      | Calcula a raiz quadrada                | `sqrt(25)`     |
+| `log()`       | Calcula o logaritmo natural (base *e*) | `log(10)`      |
+| `log10()`     | Calcula o logaritmo na base 10         | `log10(100)`   |
+| `exp()`       | Calcula a função exponencial (*eˣ*)    | `exp(2)`       |
+| `factorial()` | Calcula o fatorial de um número        | `factorial(5)` |
+| `sin()`       | Calcula o seno, usando radianos        | `sin(pi / 2)`  |
+| `cos()`       | Calcula o cosseno, usando radianos     | `cos(0)`       |
+| `tan()`       | Calcula a tangente, usando radianos    | `tan(pi / 4)`  |
+
+
+##### Exemplos em R
+
+
+``` sourceCode
+abs(-10)       # 10
+sqrt(25)       # 5
+log(10)        # logaritmo natural
+log10(100)     # 2
+exp(2)         # e elevado a 2
+factorial(5)   # 120
+
+sin(pi / 2)    # 1
+cos(0)         # 1
+tan(pi / 4)    # aproximadamente 1
+```
+
+
+> **Observação:** as funções trigonométricas do R utilizam ângulos em **radianos**.
+
+
+
+#### Criando funções
+
+Funções personalizadas permitem agrupar e reutilizar instruções para executar uma tarefa específica.
+
+
+##### Sintaxe
+
+
+``` sourceCode
+nome_da_funcao <- function(argumento_1, argumento_2) {
+  # Comandos da função
+  return(resultado)
+}
+```
+
+
+
+##### Elementos
+
+- **Nome:** identificador usado para chamar a função.
+- **`function()`:** comando que define a função.
+- **Argumentos:** dados de entrada necessários para a execução.
+- **Corpo:** comandos delimitados por chaves (`{}`).
+- **`return()`:** comando opcional que explicita o resultado retornado.
+
+
+##### Exemplo
+
+A função `maior()` recebe dois valores e retorna o maior deles:
+
+
+``` sourceCode
+maior <- function(a, b) {
+  if (a < b) {
+    return(b)
+  } else {
+    return(a)
+  }
+}
+
+maior(10, 20)
+# 20
+```
+
+
+------------------------------------------------------------------------
+
+
+
+#### Objetos
+
+No R, um objeto é uma estrutura armazenada na memória. Ele pode conter números, textos, vetores, tabelas ou outros tipos de dados.
+
+O operador `<-` é utilizado para atribuir um valor a um objeto:
+
+
+``` sourceCode
+idade <- 35
+nome <- "Ana"
+```
+
+
+##### Como criar e usar objetos
+
+- **Atribuição:** use `nome_do_objeto <- valor`.
+- **Textos:** devem ser delimitados por aspas.
+- **Nomes:** devem começar com uma letra ou ponto e não podem conter espaços.
+- **Maiúsculas e minúsculas:** o R diferencia `idade` de `Idade`.
+- **Visualização:** digite o nome do objeto no Console.
+
+
+``` sourceCode
+nome
+# [1] "Ana"
+```
+
+
+
+
+#### Principais tipos de estruturas de dados
+
+| Estrutura  |       Dimensão | Tipos de dados                |
+|------------|---------------:|-------------------------------|
+| Vetor      | Unidimensional | Um único tipo                 |
+| Matriz     |  Bidimensional | Um único tipo                 |
+| Lista      | Unidimensional | Tipos e estruturas diferentes |
+| Data frame |  Bidimensional | Um tipo por coluna            |
+
+
+#### Vetor
+
+O vetor é a estrutura de dados mais básica do R. Trata-se de uma sequência unidimensional e homogênea, ou seja, todos os elementos possuem o mesmo tipo.
+
+Um vetor é criado com a função `c()`:
+
+
+``` sourceCode
+idades <- c(25, 32, 54)
+nomes <- c("Pedro", "Ana", "Roberto")
+```
+
+
+Até mesmo um valor isolado é tratado pelo R como um vetor de comprimento 1.
+
+
+##### Tipos comuns
+
+- `double`: números reais;
+- `integer`: números inteiros;
+- `character`: textos;
+- `logical`: valores `TRUE` ou `FALSE`;
+- `complex`: números complexos.
+
+
+##### Propriedades e operações
+
+
+``` sourceCode
+length(idades)  # Quantidade de elementos
+typeof(idades)  # Tipo dos elementos
+idades[1]       # Primeiro elemento
+idades * 2      # Operação vetorizada
+```
+
+
+> A indexação no R começa na posição `1`, e não na posição `0`.
+
+
+
+#### Escalar
+
+O R não possui um tipo de dado específico chamado escalar. Um valor único é representado como um vetor de comprimento 1.
+
+
+``` sourceCode
+numero <- 5.5
+inteiro <- 10L
+nome <- "Ana"
+ativo <- TRUE
+complexo <- 1 + 2i
+```
+
+
+##### Diferença entre escalar e vetor
+
+- **Escalar:** termo usado informalmente para um vetor com um único elemento.
+- **Vetor:** sequência com um ou mais elementos do mesmo tipo.
+
+
+``` sourceCode
+x <- 10
+length(x)
+# [1] 1
+
+v <- c(10, 20, 30)
+v[1]
+# [1] 10
+```
+
+
+
+
+#### Datas
+
+A função `as.Date()` converte textos em datas. O formato padrão é `AAAA-MM-DD`.
+
+
+``` sourceCode
+data <- as.Date("2026-08-17")
+```
+
+
+Para outros formatos, informe a estrutura da data:
+
+
+``` sourceCode
+data <- as.Date("17/08/2026", format = "%d/%m/%Y")
+```
+
+
+##### Símbolos de formatação
+
+| Símbolo | Significado             | Exemplo  |
+|:-------:|-------------------------|----------|
+|  `%d`   | Dia do mês              | `17`     |
+|  `%a`   | Dia da semana abreviado | `Mon`    |
+|  `%A`   | Dia da semana completo  | `Monday` |
+|  `%m`   | Número do mês           | `08`     |
+|  `%b`   | Mês abreviado           | `Aug`    |
+|  `%B`   | Mês completo            | `August` |
+|  `%y`   | Ano com dois dígitos    | `26`     |
+|  `%Y`   | Ano com quatro dígitos  | `2026`   |
+
+
+
+#### Operações com texto
+
+Textos são representados pelo tipo `character`.
+
+| Função                   | Descrição                             |
+|--------------------------|---------------------------------------|
+| `substr(x, start, stop)` | Extrai ou substitui parte de um texto |
+| `strsplit(x, split)`     | Divide um texto usando um separador   |
+| `paste(..., sep)`        | Concatena textos                      |
+| `toupper(x)`             | Converte o texto para maiúsculas      |
+| `tolower(x)`             | Converte o texto para minúsculas      |
+
+
+##### Exemplos
+
+
+``` sourceCode
+dados$teste_data <- c("2000-05-10", "2004-04-10", "2005-03-10")
+
+substr(dados$teste_data, start = 1, stop = 4)
+# [1] "2000" "2004" "2005"
+
+x <- strsplit(dados$teste_data, split = "-")
+x[[1]][2]
+# [1] "05"
+
+paste("Paciente", dados$paciente_id, sep = ": ")
+# [1] "Paciente: 1" "Paciente: 2" "Paciente: 3"
+
+toupper(dados$teste_resultado)
+# [1] "NEGATIVO" "POSITIVO" "POSITIVO"
+
+tolower(dados$teste_resultado)
+# [1] "negativo" "positivo" "positivo"
+```
+
+
+
+
+#### Criando vetores
+
+
+``` sourceCode
+x <- c("Pedro", "Ana", "Roberto")
+x
+# [1] "Pedro" "Ana" "Roberto"
+
+x <- c(25, 32, 54)
+x
+# [1] 25 32 54
+```
+
+
+Quando tipos diferentes são combinados, o R realiza uma **coerção automática** para um tipo comum:
+
+
+``` sourceCode
+x <- c(25, "32", 54)
+x
+# [1] "25" "32" "54"
+
+x <- c(24, 2, FALSE, TRUE)
+x
+# [1] 24 2 0 1
+
+x <- c(24, 2, FALSE, TRUE, "hello")
+x
+# [1] "24" "2" "FALSE" "TRUE" "hello"
+```
+
+
+
+#### Operações de vetores
+
+As operações são realizadas elemento a elemento, sem a necessidade de laços de repetição.
+
+
+``` sourceCode
+v1 <- c(10, 20, 30)
+v2 <- c(1, 2, 3)
+
+v1 + v2
+v1 - v2
+v1 * v2
+v1 / v2
+```
+
+
+##### Reciclagem
+
+Quando vetores têm comprimentos diferentes, o R pode repetir os elementos do vetor menor:
+
+
+``` sourceCode
+c(10, 20, 30, 40) + c(1, 2)
+# [1] 11 22 31 42
+```
+
+
+> Comprimentos incompatíveis podem produzir um aviso e resultados indesejados.
+
+
+##### Seleção e indexação
+
+| Operação            | Descrição                                  |
+|---------------------|--------------------------------------------|
+| `x:y`               | Gera uma sequência de `x` até `y`          |
+| `seq(from, to, by)` | Gera uma sequência com incremento definido |
+| `x[n]`              | Acessa o elemento da posição `n`           |
+| `x[condição]`       | Seleciona valores que atendem à condição   |
+| `which(condição)`   | Retorna os índices que atendem à condição  |
+| `x[n] <- a`         | Atualiza a posição `n`                     |
+| `x[n] <- NA`        | Define a posição `n` como ausente          |
+| `x[-n]`             | Exclui a posição `n` do resultado          |
+
+
+``` sourceCode
+v <- c(10, 20, 30, 40)
+
+v[1]
+v[c(1, 3)]
+v[v > 20]
+which(v > 20)
+v[-2]
+```
+
+
+
+
+#### Funções em vetores
+
+| Função                | Descrição                              |
+|-----------------------|----------------------------------------|
+| `length()`            | Retorna o comprimento                  |
+| `min()` e `max()`     | Retornam os valores mínimo e máximo    |
+| `range()`             | Retorna o mínimo e o máximo            |
+| `round()`             | Arredonda valores                      |
+| `sort()`              | Ordena os elementos                    |
+| `sum()`               | Soma os elementos                      |
+| `prod()`              | Multiplica os elementos                |
+| `mean()` e `median()` | Calculam a média e a mediana           |
+| `var()` e `sd()`      | Calculam a variância e o desvio-padrão |
+| `IQR()`               | Calcula o intervalo interquartílico    |
+| `summary()`           | Apresenta medidas-resumo               |
+
+
+##### Exemplos
+
+
+``` sourceCode
+idades <- c(10, 86, 30, 25)
+
+length(idades)
+# [1] 4
+
+min(idades)
+# [1] 10
+
+sort(idades)
+# [1] 10 25 30 86
+
+mean(idades)
+# [1] 37.75
+
+round(mean(idades), 1)
+# [1] 37.8
+
+sd(idades)
+# [1] 33.27036
+
+summary(idades)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#   10.00   21.25   27.50   37.75   44.00   86.00
+```
+
+
+
+
+#### Matriz
+
+Uma matriz é uma estrutura bidimensional composta por linhas e colunas. Todos os seus elementos devem possuir o mesmo tipo.
+
+
+##### Criação
+
+
+``` sourceCode
+m <- matrix(
+  data = 1:6,
+  nrow = 2,
+  ncol = 3,
+  byrow = TRUE
+)
+```
+
+
+| Argumento | Descrição                     |
+|-----------|-------------------------------|
+| `data`    | Vetor com os valores          |
+| `nrow`    | Número de linhas              |
+| `ncol`    | Número de colunas             |
+| `byrow`   | Se `TRUE`, preenche por linha |
+
+
+##### Operações básicas
+
+
+``` sourceCode
+m[1, 2]  # Elemento da linha 1, coluna 2
+m[1, ]   # Primeira linha
+m[, 2]   # Segunda coluna
+
+dim(m)
+nrow(m)
+ncol(m)
+```
+
+
+As funções `rbind()` e `cbind()` combinam objetos por linhas ou colunas.
+
+
+
+#### Lista
+
+Uma lista pode armazenar elementos de diferentes tipos, tamanhos e estruturas.
+
+
+``` sourceCode
+minha_lista <- list(
+  nome = "Ana",
+  idade = 30,
+  notas = c(8, 9, 10)
+)
+```
+
+
+##### Acesso aos elementos
+
+
+``` sourceCode
+minha_lista[[1]]      # Conteúdo do primeiro elemento
+minha_lista["nome"]   # Sublista com o elemento nome
+minha_lista$nome      # Conteúdo do elemento nome
+```
+
+
+> Colchetes simples (`[ ]`) retornam uma lista; colchetes duplos (`[[ ]]`) retornam o conteúdo do elemento.
+
+
+
+#### Data frame
+
+Um data frame é uma estrutura bidimensional em formato tabular:
+
+- cada linha representa uma observação;
+- cada coluna representa uma variável;
+- cada coluna possui um único tipo;
+- colunas diferentes podem possuir tipos diferentes;
+- todas as colunas devem ter o mesmo comprimento.
+
+
+``` sourceCode
+dados <- data.frame(
+  nome = c("Ana", "Bia"),
+  idade = c(25, 30)
+)
+```
+
+
+Também é possível criar um data frame importando dados externos:
+
+
+``` sourceCode
+dados <- read.csv("arquivo.csv")
+```
+
+
+
+#### Data frame como lista
+
+Internamente, um data frame é uma lista de vetores com algumas restrições:
+
+- cada coluna é um vetor;
+- todas as colunas têm o mesmo comprimento;
+- os nomes das colunas devem ser únicos.
+
+
+#### Criando um data frame
+
+
+``` sourceCode
+paciente_id <- 1:3
+teste_resultado <- c("Negativo", "Positivo", "Positivo")
+teste_valor <- c(70, 80, 220)
+teste_data <- c("2000-05-10", "2004-04-10", "2005-03-10")
+
+dados <- data.frame(
+  paciente_id,
+  teste_resultado,
+  teste_valor,
+  teste_data
+)
+```
+
+
+A criação também pode ser feita diretamente:
+
+
+``` sourceCode
+dados <- data.frame(
+  paciente_id = 1:3,
+  teste_resultado = c("Negativo", "Positivo", "Positivo"),
+  teste_valor = c(70, 80, 220),
+  teste_data = c("2000-05-10", "2004-04-10", "2005-03-10")
+)
+```
+
+
+
+#### Operações com data frames
+
+
+##### Inspeção
+
+
+``` sourceCode
+dim(dados)
+nrow(dados)
+ncol(dados)
+str(dados)
+summary(dados)
+```
+
+
+
+##### Seleção
+
+
+``` sourceCode
+dados$teste_resultado  # Coluna como vetor
+dados[1, 2]            # Linha 1, coluna 2
+dados[1, ]             # Primeira linha
+dados[, "teste_valor"] # Coluna pelo nome
+dados[2]               # Data frame com a segunda coluna
+```
+
+
+
+##### Manipulação
+
+
+``` sourceCode
+dados[dados$teste_valor > 70, ]  # Filtrar linhas
+dados$altura <- c(1.68, 1.75, 1.70)  # Criar coluna
+dados$altura <- NULL             # Remover coluna
+dados[, -1]                      # Omitir a primeira coluna
+```
+
+
+| Operação        | Descrição                                  |
+|-----------------|--------------------------------------------|
+| `cbind(x, y)`   | Adiciona `y` como coluna                   |
+| `rbind(x, y)`   | Adiciona `y` como linha                    |
+| `x[a, b]`       | Acessa a linha `a` e a coluna `b`          |
+| `x[, b]`        | Acessa todos os elementos da coluna `b`    |
+| `x[a, ]`        | Acessa todos os elementos da linha `a`     |
+| `x[2:4, 5:8]`   | Seleciona um intervalo de linhas e colunas |
+| `x$y`           | Acessa a coluna `y`                        |
+| `x$y[n]`        | Acessa a posição `n` da coluna `y`         |
+| `x$y[condição]` | Filtra valores da coluna `y`               |
+| `x$y <- a`      | Cria ou atualiza a coluna `y`              |
+| `x$y[n] <- a`   | Atualiza uma posição da coluna `y`         |
+| `x$y <- NULL`   | Remove a coluna `y`                        |
+| `x[-n]`         | Exclui a coluna da posição `n`             |
+
+
+
+#### Data frames encadeados com pipe (`|>` ou `%>%`)
+
+O operador pipe encaminha o resultado de uma operação para a seguinte, tornando o código mais linear e legível.
+
+**Objetivo:** calcular o desvio-padrão dos testes abaixo de 200 e arredondar o resultado.
+
+Sem pipe:
+
+
+``` sourceCode
+round(sd(dados$teste_valor[dados$teste_valor < 200]), 0)
+# [1] 7
+```
+
+
+Com o pipe nativo:
+
+
+``` sourceCode
+dados$teste_valor[dados$teste_valor < 200] |>
+  sd() |>
+  round(0)
+# [1] 7
+```
+
+
+##### Conversão de tipos
+
+
+``` sourceCode
+dados <- data.frame(
+  paciente_id = 1:3,
+  teste_resultado = factor(
+    c("Negativo", "Positivo", "Positivo")
+  ),
+  teste_valor = c(70, 80, 220),
+  teste_data = as.Date(
+    c("2000-05-10", "2004-04-10", "2005-03-10")
+  )
+)
+```
+
+
+
+
+#### Variáveis ordinais
+
+Variáveis ordinais possuem categorias com uma ordem lógica, como:
+
+> baixo \< médio \< alto
+
+No R, elas podem ser representadas por fatores ordenados:
+
+
+``` sourceCode
+df$risco <- factor(
+  df$risco,
+  levels = c("baixo", "médio", "alto"),
+  ordered = TRUE
+)
+```
+
+
+##### Operações comuns
+
+
+``` sourceCode
+df$risco > "baixo"
+df[order(df$risco), ]
+summary(df$risco)
+```
+
+
+------------------------------------------------------------------------
+
+
+
+
+### Plot
+
+A função `plot()` é a ferramenta gráfica genérica do R Base. O gráfico produzido depende da classe e da quantidade de objetos fornecidos.
+
+
+``` sourceCode
+plot(x)     # Valores de x por índice
+plot(x, y)  # Relação entre x e y
+```
+
+
+#### Argumentos principais
+
+| Argumento | Descrição                                                        |
+|-----------|------------------------------------------------------------------|
+| `type`    | Tipo do gráfico: pontos (`"p"`), linhas (`"l"`) ou ambos (`"b"`) |
+| `main`    | Título principal                                                 |
+| `xlab`    | Rótulo do eixo X                                                 |
+| `ylab`    | Rótulo do eixo Y                                                 |
+| `col`     | Cor                                                              |
+| `pch`     | Símbolo dos pontos                                               |
+
+
+##### Gráfico de dispersão
+
+
+``` sourceCode
+x <- c(1, 2, 3, 4)
+y <- c(1, 4, 9, 16)
+
+plot(
+  x,
+  y,
+  type = "p",
+  main = "Gráfico de dispersão",
+  xlab = "Eixo X",
+  ylab = "Eixo Y"
+)
+```
+
+
+
+##### Gráfico de linhas
+
+
+``` sourceCode
+dados <- c(5, 10, 15, 8, 20)
+
+plot(
+  dados,
+  type = "l",
+  col = "blue",
+  main = "Evolução temporal"
+)
+```
+
+
+
+
+#### ggplot2
+
+O **ggplot2**, criado por Hadley Wickham, implementa uma gramática de gráficos baseada na construção por camadas.
+
+
+##### Componentes principais
+
+1.  **Dados (`data`):** conjunto de dados utilizado.
+2.  **Mapeamento estético (`aes`):** associa variáveis aos eixos, cores, tamanhos ou formas.
+3.  **Geometria (`geom_*`):** define os elementos visuais, como pontos, linhas ou barras.
+
+
+##### Exemplo
+
+
+``` sourceCode
+library(ggplot2)
+
+ggplot(
+  data = mtcars,
+  mapping = aes(x = wt, y = mpg)
+) +
+  geom_point(color = "blue", size = 3) +
+  labs(
+    title = "Relação entre peso e consumo",
+    x = "Peso (wt)",
+    y = "Milhas por galão (mpg)"
+  ) +
+  theme_minimal()
+```
+
+
+
+##### Principais vantagens
+
+- construção modular por camadas;
+- padronização entre diferentes tipos de gráficos;
+- personalização de eixos, títulos, escalas e temas;
+- criação de painéis com facetas;
+- integração com data frames.
+
+------------------------------------------------------------------------
+
+
+
+
+### Gestão de memória no R
+
+O R utiliza o modelo **copy-on-modify** e realiza a limpeza automática da memória por meio de um coletor de lixo (*garbage collector*).
+
+
+#### Alocação e associação de nomes
+
+
+``` sourceCode
+x <- c(1, 2, 3)
+y <- x
+```
+
+
+Inicialmente, `x` e `y` podem compartilhar o mesmo objeto na memória.
+
+
+#### Cópia ao modificar
+
+Quando `y` é alterado, o R pode criar uma cópia para preservar `x`:
+
+
+``` sourceCode
+y[3] <- 4
+
+x
+# [1] 1 2 3
+
+y
+# [1] 1 2 4
+```
+
+
+O crescimento repetido de objetos dentro de loops pode provocar cópias sucessivas e reduzir o desempenho. Quando possível, recomenda-se realizar a pré-alocação.
+
+
+#### Modificação por referência
+
+Algumas estruturas apresentam comportamento diferente, como:
+
+- ambientes (*environments*);
+- objetos do pacote `data.table`;
+- objetos baseados em classes R6.
+
+
+#### Remoção de objetos
+
+Objetos podem ser removidos com `rm()`:
+
+
+``` sourceCode
+rm(x)
+```
+
+
+A função `gc()` solicita uma coleta de lixo e apresenta informações sobre o uso da memória:
+
+
+``` sourceCode
+gc()
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Big Data no R
+
+O R tradicional trabalha com objetos carregados na memória RAM. Bases maiores que a memória disponível exigem estratégias específicas de processamento.
+
+
+#### Principais desafios
+
+- os dados precisam caber na memória para operações convencionais;
+- determinadas transformações criam cópias temporárias;
+- o processamento pode exigir mais memória que o tamanho do arquivo original;
+- o hardware local pode limitar a análise de bases massivas.
+
+
+#### Principais soluções
+
+
+##### Integração com bancos de dados
+
+O R pode enviar consultas ao banco e importar somente os dados necessários.
+
+Pacotes comuns:
+
+- `DBI`;
+- `RPostgres`;
+- `dbplyr`.
+
+
+##### Apache Spark
+
+Os pacotes `sparklyr` e `SparkR` permitem utilizar o R como interface para o processamento distribuído no Apache Spark.
+
+
+##### Processamento paralelo
+
+Pacotes como `parallel`, `future` e componentes do ecossistema `pbdR` permitem distribuir tarefas entre diferentes núcleos ou máquinas.
+
+
+##### Processamento em disco
+
+Alguns pacotes e formatos permitem consultar ou processar dados sem carregar todo o conjunto na memória:
+
+- `arrow`;
+- `duckdb`;
+- `disk.frame`;
+- `ff`;
+- `bigmemory`.
+
+
+##### Estruturas eficientes
+
+O pacote `data.table` oferece operações eficientes e pode modificar determinados objetos por referência, reduzindo cópias desnecessárias.
+
+
+
+
+
+## Dados, informação, conhecimento e decisão
+
+
+### Conceitos
+
+Dados, informações e conhecimento representam diferentes níveis de compreensão. A decisão corresponde à aplicação prática desse conhecimento.
+
+| Elemento         | Definição                                                           | Exemplo                                                  |
+|------------------|---------------------------------------------------------------------|----------------------------------------------------------|
+| **Dado**         | Fato bruto ou registro isolado, sem contexto ou significado próprio | `38`                                                     |
+| **Informação**   | Dado processado, organizado e contextualizado                       | A temperatura corporal do paciente é de 38 °C            |
+| **Conhecimento** | Informação compreendida, validada e associada à experiência         | Temperaturas acima de 37,8 °C podem indicar febre        |
+| **Decisão**      | Escolha ou ação realizada com base no conhecimento                  | Investigar a causa da febre e definir a conduta adequada |
+
+O processo pode ser resumido da seguinte forma:
+
+> **Dado → Informação → Conhecimento → Decisão**
+
+------------------------------------------------------------------------
+
+
+### Ciclo de vida dos dados
+
+O ciclo de vida dos dados representa o caminho percorrido desde sua criação até seu arquivamento ou descarte.
+
+Compreender esse processo é necessário para garantir:
+
+- qualidade;
+- segurança;
+- governança;
+- rastreabilidade;
+- conformidade com normas e leis, como a LGPD.
+
+
+#### Etapas principais
+
+1.  **Criação e coleta:** obtenção de dados por formulários, sensores, APIs ou transações.
+2.  **Armazenamento:** gravação em bancos de dados, *data lakes* ou outros repositórios.
+3.  **Processamento e transformação:** limpeza, correção, padronização e organização.
+4.  **Análise e uso:** geração de informações, indicadores, relatórios e modelos.
+5.  **Compartilhamento:** distribuição controlada para usuários e sistemas autorizados.
+6.  **Arquivamento ou descarte:** preservação para auditoria ou eliminação segura.
+
+------------------------------------------------------------------------
+
+
+
+### Estrutura de dados na programação
+
+Uma estrutura de dados define como as informações são organizadas, armazenadas e acessadas na memória.
+
+A escolha adequada da estrutura influencia:
+
+- o desempenho;
+- o consumo de memória;
+- a organização do código;
+- a eficiência dos algoritmos.
+
+
+#### Estruturas lineares
+
+| Estrutura           | Descrição                                                  |
+|---------------------|------------------------------------------------------------|
+| **Array**           | Elementos acessados por índices numéricos                  |
+| **Lista ligada**    | Elementos conectados por referências ao próximo item       |
+| **Pilha (*stack*)** | Segue o princípio LIFO: último a entrar, primeiro a sair   |
+| **Fila (*queue*)**  | Segue o princípio FIFO: primeiro a entrar, primeiro a sair |
+
+
+#### Estruturas não lineares
+
+| Estrutura       | Descrição                                               |
+|-----------------|---------------------------------------------------------|
+| **Árvore**      | Organização hierárquica formada por raiz e ramificações |
+| **Grafo**       | Conjunto de nós ligados por conexões                    |
+| **Tabela hash** | Associa chaves a valores para permitir buscas rápidas   |
+
+------------------------------------------------------------------------
+
+
+
+### Dado e metadado
+
+O dado corresponde ao conteúdo principal. O metadado descreve esse conteúdo e fornece contexto para sua interpretação.
+
+| Tipo         | Definição                              | Exemplo                                           |
+|--------------|----------------------------------------|---------------------------------------------------|
+| **Dado**     | Valor, registro ou conteúdo armazenado | Fotografia digital                                |
+| **Metadado** | Informação que descreve um dado        | Data da foto, autor, resolução e modelo da câmera |
+
+Outros exemplos:
+
+| Dado                        | Metadados                                       |
+|-----------------------------|-------------------------------------------------|
+| Texto de um livro           | Autor, título, editora e número de páginas      |
+| Arquivo de música           | Artista, álbum, gênero e duração                |
+| Coluna de um banco de dados | Nome, tipo, domínio e descrição                 |
+| Resultado de exame          | Unidade de medida, método e valor de referência |
+
+------------------------------------------------------------------------
+
+
+### Dados estruturados e não estruturados
+
+Os dados podem ser classificados de acordo com o nível de organização de sua estrutura.
+
+
+#### Dados estruturados
+
+Possuem formato rígido, com campos previamente definidos.
+
+Características:
+
+- organização em linhas e colunas;
+- tipos definidos para cada campo;
+- consulta eficiente com linguagens como SQL;
+- validação por regras e restrições.
+
+Exemplos:
+
+- tabelas de bancos relacionais;
+- cadastros de pacientes;
+- registros de vendas;
+- transações bancárias.
+
+
+#### Dados semiestruturados
+
+Não seguem um modelo tabular rígido, mas possuem marcadores ou uma organização interna.
+
+Características:
+
+- uso de chaves, etiquetas ou metadados;
+- estrutura hierárquica;
+- flexibilidade para incluir ou remover campos.
+
+Exemplos:
+
+- JSON;
+- XML;
+- registros de eventos;
+- documentos com campos variáveis.
+
+> Arquivos CSV são tabulares, embora não imponham tipos ou restrições como um banco de dados relacional.
+
+
+#### Dados não estruturados
+
+Não possuem um modelo de organização previamente definido.
+
+Exemplos:
+
+- textos livres;
+- documentos PDF;
+- imagens;
+- áudios;
+- vídeos;
+- mensagens e publicações em redes sociais.
+
+
+#### Linguagem natural
+
+Textos e falas humanas são normalmente tratados como dados não estruturados.
+
+O **Processamento de Linguagem Natural (PLN)** utiliza métodos computacionais para extrair informações, entidades, relações, temas e sentimentos desses conteúdos.
+
+------------------------------------------------------------------------
+
+
+
+### Dados, estrutura e gestão do conhecimento
+
+A hierarquia **DIKW** representa a evolução dos dados brutos até a compreensão necessária para orientar ações.
+
+> **Data → Information → Knowledge → Wisdom**  
+> **Dados → Informação → Conhecimento → Sabedoria**
+
+| Nível            | Descrição                            | Exemplo                                               |
+|------------------|--------------------------------------|-------------------------------------------------------|
+| **Dados**        | Elementos isolados e sem contexto    | `23`, `"Ana"`, `"maio"`                               |
+| **Informação**   | Dados organizados e contextualizados | Ana realizou 23 vendas em maio                        |
+| **Conhecimento** | Interpretação de padrões e causas    | As vendas aumentam no fim do mês                      |
+| **Sabedoria**    | Aplicação criteriosa do conhecimento | Planejar uma campanha para o período de maior demanda |
+
+A **Gestão do Conhecimento (GC)** reúne práticas para:
+
+- capturar;
+- registrar;
+- organizar;
+- recuperar;
+- compartilhar;
+- reutilizar o conhecimento produzido por pessoas e organizações.
+
+
+#### Formas de organização com programação
+
+
+##### Listas
+
+Estruturas lineares usadas para armazenar sequências ou coleções de elementos.
+
+
+##### Classificações e taxonomias
+
+Organizam conceitos em hierarquias baseadas em relações de ancestralidade.
+
+> Produto → Eletrônico → Smartphone
+
+
+##### Padrões, terminologias e modelos semânticos em saúde
+
+Nem todos os recursos usados para interoperabilidade semântica são ontologias.
+
+Eles podem ser classificados como:
+
+| Categoria                        | Finalidade                                              |
+|----------------------------------|---------------------------------------------------------|
+| **Ontologia**                    | Representar conceitos, propriedades e relações formais  |
+| **Terminologia clínica**         | Padronizar conceitos usados no cuidado                  |
+| **Terminologia regulatória**     | Padronizar eventos e informações regulatórias           |
+| **Classificação**                | Agrupar elementos para análise estatística              |
+| **Padrão de interoperabilidade** | Definir como as informações são estruturadas e trocadas |
+| **Modelo de informação**         | Definir a estrutura e o significado dos registros       |
+| **Metaterminologia**             | Relacionar conceitos de diferentes vocabulários         |
+| **Lista oficial**                | Definir itens selecionados por uma política pública     |
+
+
+
+#### Visão geral
+
+| Recurso       | Categoria principal                           | Aplicação                                         |
+|---------------|-----------------------------------------------|---------------------------------------------------|
+| **HL7 FHIR**  | Padrão de interoperabilidade                  | Troca eletrônica de dados de saúde                |
+| **SNOMED CT** | Terminologia clínica com estrutura ontológica | Representação detalhada de conceitos clínicos     |
+| **openEHR**   | Modelo de registro eletrônico em saúde        | Persistência de dados clínicos por arquétipos     |
+| **OBM**       | Ontologia de medicamentos                     | Representação semântica de medicamentos no Brasil |
+| **IDMP**      | Conjunto de padrões ISO                       | Identificação regulatória de medicamentos         |
+| **MedDRA**    | Terminologia regulatória                      | Eventos adversos e farmacovigilância              |
+| **UMLS**      | Sistema de integração terminológica           | Correspondência entre vocabulários biomédicos     |
+| **ATC/DDD**   | Classificação e metodologia de medida         | Estudos de utilização de medicamentos             |
+| **Rename**    | Lista nacional oficial                        | Medicamentos e insumos disponibilizados no SUS    |
+
+> O nome correto do padrão é **IDMP** — *Identification of Medicinal Products*. A grafia “IDM-P” não é a forma oficial.
+
+
+##### Ontologias
+
+Modelos semânticos que descrevem:
+
+- entidades;
+- propriedades;
+- categorias;
+- regras;
+- relações entre conceitos.
+
+As ontologias permitem representar relações mais complexas que as taxonomias e podem apoiar integração semântica e inferência automatizada.
+
+
+
+#### HL7 FHIR
+
+O **HL7 FHIR** — *Fast Healthcare Interoperability Resources* — é um padrão para intercâmbio eletrônico de informações em saúde.
+
+O FHIR organiza os dados em estruturas chamadas **recursos**.
+
+Exemplos:
+
+| Recurso FHIR        | Conteúdo                                 |
+|---------------------|------------------------------------------|
+| `Patient`           | Dados do paciente                        |
+| `Practitioner`      | Profissional de saúde                    |
+| `Organization`      | Organização ou estabelecimento           |
+| `Observation`       | Resultado clínico ou laboratorial        |
+| `Condition`         | Problema ou condição clínica             |
+| `Procedure`         | Procedimento realizado                   |
+| `Medication`        | Medicamento                              |
+| `MedicationRequest` | Prescrição ou solicitação de medicamento |
+| `DiagnosticReport`  | Relatório diagnóstico                    |
+| `Encounter`         | Encontro ou atendimento                  |
+
+Exemplo simplificado de uma observação:
+
+
+``` sourceCode
+{
+  "resourceType": "Observation",
+  "status": "final",
+  "code": {
+    "text": "Temperatura corporal"
+  },
+  "valueQuantity": {
+    "value": 38.2,
+    "unit": "°C"
+  }
+}
+```
+
+
+O FHIR define como o dado é estruturado e transmitido, mas pode utilizar terminologias externas para definir seu significado.
+
+Exemplo:
+
+> O FHIR estrutura uma condição clínica; o SNOMED CT pode fornecer o código que representa essa condição.
+
+O FHIR pode ser implementado por meio de:
+
+- APIs REST;
+- JSON;
+- XML;
+- documentos;
+- mensagens;
+- operações específicas;
+- guias de implementação.
+
+Fonte: <https://www.hl7.org/fhir/overview.html>
+
+
+#### SNOMED CT
+
+O **SNOMED CT** — *Systematized Nomenclature of Medicine Clinical Terms* — é uma terminologia clínica internacional, multilíngue e computável.
+
+Ele representa conceitos por meio de:
+
+- identificadores;
+- descrições;
+- sinônimos;
+- hierarquias;
+- atributos;
+- relações lógicas.
+
+Exemplos de conceitos representáveis:
+
+- febre;
+- diabetes mellitus;
+- alergia a medicamento;
+- dor torácica;
+- procedimento cirúrgico;
+- estrutura anatômica;
+- microrganismo;
+- substância.
+
+Um mesmo conceito pode possuir diferentes descrições:
+
+``` text
+Conceito: hipertensão arterial sistêmica
+
+Descrições possíveis:
+- hipertensão arterial;
+- pressão alta;
+- HAS.
+```
+
+Todas as descrições podem apontar para um mesmo identificador conceitual.
+
+O SNOMED CT permite consultas semânticas, como:
+
+> Recuperar todos os registros classificados como doenças infecciosas, incluindo seus subtipos.
+
+Principais aplicações:
+
+- registro clínico estruturado;
+- prontuário eletrônico;
+- apoio à decisão;
+- recuperação semântica;
+- indicadores clínicos;
+- integração entre sistemas;
+- mapeamento para outras classificações.
+
+> O uso do SNOMED CT está sujeito a regras de licenciamento e às extensões nacionais disponíveis.
+
+Fonte: <https://www.snomed.org/what-is-snomed-ct>
+
+
+#### openEHR
+
+O **openEHR** é um conjunto aberto de especificações para construção de registros eletrônicos de saúde interoperáveis e semanticamente estruturados.
+
+Sua abordagem separa:
+
+1.  o modelo técnico de referência;
+2.  o conteúdo clínico definido por especialistas.
+
+O conteúdo clínico é organizado principalmente por:
+
+| Componente               | Função                                             |
+|--------------------------|----------------------------------------------------|
+| **Arquétipo**            | Define um conceito clínico reutilizável            |
+| **Template**             | Combina e restringe arquétipos para um caso de uso |
+| **Terminologia**         | Codifica conceitos e valores                       |
+| **Modelo de referência** | Define a estrutura técnica persistente             |
+
+Exemplo:
+
+``` text
+Arquétipo:
+  Pressão arterial
+
+Elementos:
+  - pressão sistólica;
+  - pressão diastólica;
+  - posição do paciente;
+  - local da medição;
+  - dispositivo utilizado.
+```
+
+Um template de consulta ambulatorial pode combinar arquétipos de:
+
+- pressão arterial;
+- peso;
+- altura;
+- diagnóstico;
+- medicamento;
+- plano de cuidado.
+
+O openEHR é um modelo para armazenamento e organização longitudinal dos registros. O FHIR é amplamente utilizado para troca de informações entre sistemas.
+
+> openEHR e FHIR podem ser usados de forma complementar.
+
+Fonte: <https://specifications.openehr.org/>
+
+
+#### OBM
+
+A **Ontologia Brasileira de Medicamentos (OBM)** é um modelo semântico destinado à representação padronizada de medicamentos no contexto regulatório brasileiro.
+
+Ela procura diferenciar entidades que frequentemente aparecem misturadas em bases convencionais, como:
+
+- substância;
+- princípio ativo;
+- medicamento virtual;
+- medicamento comercial;
+- apresentação;
+- concentração;
+- forma farmacêutica;
+- via de administração;
+- embalagem;
+- registro sanitário;
+- fabricante.
+
+Exemplo conceitual:
+
+``` text
+Substância:
+  paracetamol
+
+Medicamento virtual:
+  paracetamol 500 mg comprimido
+
+Medicamento comercial:
+  produto de determinada marca, fabricante e registro
+
+Apresentação:
+  caixa com 20 comprimidos
+```
+
+Essa separação permite representar corretamente que:
+
+- produtos comerciais diferentes podem conter a mesma substância;
+- apresentações diferentes podem pertencer ao mesmo medicamento;
+- um registro sanitário não equivale ao código de um procedimento;
+- nomes textuais semelhantes não garantem equivalência farmacêutica.
+
+A OBM pode apoiar:
+
+- integração de bases regulatórias;
+- identificação de apresentações;
+- farmacovigilância;
+- compras públicas;
+- padronização de medicamentos;
+- relacionamento com outros modelos farmacêuticos.
+
+> Um código CATMAT, um registro da Anvisa, um código SIGTAP e um item da Rename não são identificadores equivalentes.
+
+
+#### IDMP
+
+O **IDMP** — *Identification of Medicinal Products* — é um conjunto de padrões ISO para identificação e descrição de medicamentos em processos regulatórios.
+
+O conjunto inclui padrões relacionados a:
+
+- medicamentos;
+- substâncias;
+- formas farmacêuticas;
+- unidades de apresentação;
+- vias de administração;
+- unidades de medida;
+- organizações;
+- referências terminológicas.
+
+O IDMP permite distinguir:
+
+``` text
+Medicamento autorizado
+  ├── substância
+  ├── concentração
+  ├── forma farmacêutica
+  ├── via de administração
+  ├── apresentação
+  ├── fabricante
+  └── autorização regulatória
+```
+
+Principais aplicações:
+
+- registro regulatório;
+- identificação internacional de medicamentos;
+- farmacovigilância;
+- intercâmbio entre autoridades sanitárias;
+- detecção de sinais de segurança;
+- rastreabilidade.
+
+> IDMP não é uma lista de medicamentos. É um conjunto de padrões para representar e identificar produtos medicinais.
+
+Fonte: <https://www.ema.europa.eu/en/human-regulatory-overview/research-development/data-medicines-iso-idmp-standards-overview>
+
+
+#### MedDRA
+
+O **MedDRA** — *Medical Dictionary for Regulatory Activities* — é uma terminologia médica padronizada desenvolvida para atividades regulatórias relacionadas a produtos de uso humano.
+
+É utilizada em:
+
+- registro de medicamentos;
+- ensaios clínicos;
+- notificações de eventos adversos;
+- farmacovigilância;
+- relatórios periódicos de segurança;
+- detecção de sinais;
+- acompanhamento pós-comercialização.
+
+O MedDRA possui uma estrutura hierárquica:
+
+``` text
+SOC — System Organ Class
+  HLGT — High Level Group Term
+    HLT — High Level Term
+      PT — Preferred Term
+        LLT — Lowest Level Term
+```
+
+Exemplo simplificado:
+
+``` text
+Relato original:
+  "O paciente apresentou muita coceira"
+
+Termo codificado:
+  Prurido
+```
+
+A codificação permite agrupar diferentes expressões clínicas em termos regulatórios padronizados.
+
+> MedDRA não é voltado principalmente à documentação completa do prontuário. Seu foco é a atividade regulatória e a segurança de produtos.
+
+Fonte: <https://www.meddra.org/>
+
+
+#### UMLS
+
+O **UMLS** — *Unified Medical Language System* — é um sistema desenvolvido pela National Library of Medicine dos Estados Unidos para integrar diferentes vocabulários biomédicos.
+
+Seu componente mais conhecido é o **Metathesaurus**, que relaciona termos de diversas fontes.
+
+Exemplos de fontes que podem ser integradas:
+
+- SNOMED CT;
+- CID;
+- LOINC;
+- MeSH;
+- terminologias farmacológicas;
+- vocabulários clínicos e administrativos.
+
+Exemplo conceitual:
+
+``` text
+"Infarto do miocárdio"
+"Heart attack"
+"Myocardial infarction"
+```
+
+Essas expressões podem ser associadas a um mesmo conceito no UMLS, mesmo quando vêm de vocabulários diferentes.
+
+Principais componentes:
+
+| Componente             | Função                                               |
+|------------------------|------------------------------------------------------|
+| **Metathesaurus**      | Integra conceitos e termos de várias fontes          |
+| **Semantic Network**   | Organiza os conceitos em tipos e relações semânticas |
+| **SPECIALIST Lexicon** | Oferece recursos linguísticos biomédicos             |
+
+O UMLS pode apoiar:
+
+- mapeamento terminológico;
+- processamento de linguagem natural;
+- pesquisa bibliográfica;
+- integração de bases;
+- identificação de sinônimos;
+- relacionamento entre códigos.
+
+> O UMLS não substitui as terminologias de origem. Ele cria relações entre elas.
+
+Fonte: <https://www.nlm.nih.gov/research/umls/>
+
+
+#### ATC/DDD
+
+O sistema **ATC/DDD** é mantido pela Organização Mundial da Saúde para estudos de utilização de medicamentos.
+
+Ele combina:
+
+- **ATC:** classificação Anatômica, Terapêutica e Química;
+- **DDD:** Dose Diária Definida.
+
+
+##### ATC
+
+A classificação ATC organiza medicamentos em níveis hierárquicos segundo:
+
+- órgão ou sistema de atuação;
+- finalidade terapêutica;
+- propriedades farmacológicas;
+- características químicas.
+
+Estrutura geral:
+
+``` text
+Nível 1: grupo anatômico
+Nível 2: grupo terapêutico
+Nível 3: subgrupo farmacológico
+Nível 4: subgrupo químico, terapêutico ou farmacológico
+Nível 5: substância química
+```
+
+Exemplo de código:
+
+``` text
+A10BA02
+```
+
+A estrutura do código permite situar a substância em uma hierarquia anatômica, terapêutica e química.
+
+
+##### DDD
+
+A **Dose Diária Definida** é uma unidade técnica de comparação.
+
+Ela representa a dose média diária de manutenção presumida para a principal indicação de um medicamento em adultos.
+
+Exemplo de indicador:
+
+``` text
+DDD por mil habitantes por dia
+```
+
+Esse indicador permite comparar o consumo entre:
+
+- períodos;
+- territórios;
+- estabelecimentos;
+- populações.
+
+> A DDD não é necessariamente a dose prescrita, recomendada ou utilizada por cada paciente.
+
+Fonte: <https://www.who.int/tools/atc-ddd-toolkit>
+
+
+
+#### Rename
+
+A **Relação Nacional de Medicamentos Essenciais (Rename)** é o instrumento oficial que organiza os medicamentos e insumos disponibilizados no SUS.
+
+Ela apoia:
+
+- seleção de medicamentos;
+- assistência farmacêutica;
+- financiamento;
+- planejamento;
+- prescrição;
+- dispensação;
+- uso racional de medicamentos.
+
+Os itens são organizados de acordo com componentes e responsabilidades de financiamento.
+
+Exemplos:
+
+- Componente Básico da Assistência Farmacêutica;
+- Componente Estratégico da Assistência Farmacêutica;
+- Componente Especializado da Assistência Farmacêutica;
+- medicamentos de uso hospitalar;
+- insumos;
+- vacinas e outros imunobiológicos.
+
+A Rename não é uma ontologia nem uma terminologia clínica.
+
+Ela é uma lista oficial orientadora da política de medicamentos do SUS.
+
+Exemplo de interpretação:
+
+``` text
+OBM:
+  descreve semanticamente o medicamento e suas relações.
+
+ATC:
+  classifica a substância segundo grupo anatômico e terapêutico.
+
+DDD:
+  fornece uma unidade técnica para estudos de utilização.
+
+Rename:
+  informa a seleção e a organização do medicamento no SUS.
+```
+
+Fonte: <https://www.gov.br/saude/pt-br/composicao/sectics/rename>
+
+
+#### Como esses recursos podem trabalhar juntos
+
+Exemplo de uma prescrição eletrônica:
+
+| Necessidade                                                 | Recurso possível |
+|-------------------------------------------------------------|------------------|
+| Estruturar e transmitir a prescrição                        | HL7 FHIR         |
+| Armazenar o registro clínico longitudinal                   | openEHR          |
+| Representar a condição clínica                              | SNOMED CT        |
+| Identificar semanticamente o medicamento no Brasil          | OBM              |
+| Identificar o produto em contexto regulatório internacional | IDMP             |
+| Codificar evento adverso                                    | MedDRA           |
+| Relacionar diferentes terminologias                         | UMLS             |
+| Classificar o medicamento                                   | ATC              |
+| Comparar utilização                                         | DDD              |
+| Verificar a disponibilidade no SUS                          | Rename           |
+
+Fluxo conceitual:
+
+> Registro clínico → estrutura interoperável → terminologia padronizada → identificação do medicamento → monitoramento regulatório → análise de utilização → política de acesso
+
+
+#### Cuidados na integração
+
+- códigos de sistemas diferentes não devem ser unidos apenas por semelhança textual;
+- equivalência entre conceitos deve ser validada;
+- versões e datas de vigência precisam ser registradas;
+- códigos descontinuados devem ser preservados no histórico;
+- relações podem ser exatas, mais amplas, mais restritas ou aproximadas;
+- licenças de uso devem ser verificadas;
+- classificações não substituem terminologias clínicas;
+- uma lista de medicamentos não substitui um modelo regulatório;
+- interoperabilidade sintática não garante interoperabilidade semântica.
+
+------------------------------------------------------------------------
+
+
+
+### Dicionário de dados, tipos de dados, domínios, restrições e regras de negócio
+
+
+#### Dicionário de dados
+
+É um repositório de metadados que documenta a estrutura e o significado dos campos de um sistema.
+
+Pode conter:
+
+- nome da tabela;
+- nome do campo;
+- descrição;
+- tipo de dado;
+- tamanho;
+- domínio;
+- obrigatoriedade;
+- unidade de medida;
+- origem;
+- relacionamento com outros campos.
+
+
+#### Tipos de dados
+
+Definem a natureza técnica dos valores armazenados.
+
+| Tipo        | Descrição                    | Exemplo                |
+|-------------|------------------------------|------------------------|
+| `INTEGER`   | Número inteiro               | Quantidade de itens    |
+| `NUMERIC`   | Número com precisão definida | Valor monetário        |
+| `VARCHAR`   | Texto com tamanho limitado   | Nome                   |
+| `TEXT`      | Texto de tamanho variável    | Observação clínica     |
+| `DATE`      | Data                         | Data de nascimento     |
+| `TIMESTAMP` | Data e hora                  | Momento do atendimento |
+| `BOOLEAN`   | Valor lógico                 | Ativo ou inativo       |
+
+
+#### Domínios
+
+Um domínio define o conjunto de valores válidos para um campo.
+
+Exemplo:
+
+``` text
+status_conta ∈ {Ativo, Inativo, Suspenso}
+```
+
+A integridade de domínio impede a inclusão de valores incompatíveis com a definição do campo.
+
+
+#### Restrições
+
+Restrições são regras aplicadas pelo banco de dados para preservar a integridade.
+
+| Restrição     | Finalidade                              |
+|---------------|-----------------------------------------|
+| `NOT NULL`    | Impede valores nulos                    |
+| `UNIQUE`      | Impede valores duplicados               |
+| `PRIMARY KEY` | Identifica cada registro de forma única |
+| `FOREIGN KEY` | Garante o relacionamento entre tabelas  |
+| `CHECK`       | Valida uma condição                     |
+| `DEFAULT`     | Define um valor padrão                  |
+
+
+#### Regras de negócio
+
+São políticas ou condições operacionais que o sistema deve respeitar.
+
+Exemplo:
+
+> Um cliente somente pode realizar uma compra quando seu limite de crédito for igual ou superior ao valor total do pedido.
+
+Uma regra de negócio pode ser implementada:
+
+- na aplicação;
+- no banco de dados;
+- em serviços externos;
+- em processos organizacionais.
+
+------------------------------------------------------------------------
+
+
+
+### Dicionário de dados e codebook
+
+Embora possam ser usados como sinônimos, **dicionário de dados** e **codebook** possuem focos diferentes.
+
+
+#### Dicionário de dados
+
+Concentra-se na estrutura técnica dos dados.
+
+Pode documentar:
+
+- nomes de tabelas e campos;
+- tipos;
+- tamanhos;
+- precisão;
+- chaves;
+- restrições;
+- relacionamentos;
+- unidades de medida.
+
+É comum em:
+
+- engenharia de software;
+- administração de bancos de dados;
+- arquitetura e governança de dados.
+
+
+#### Codebook
+
+Concentra-se no significado analítico das variáveis de uma pesquisa ou conjunto de dados.
+
+Pode documentar:
+
+- nome e descrição da variável;
+- pergunta original do instrumento;
+- rótulos e códigos de resposta;
+- unidades de medida;
+- códigos de dados ausentes;
+- universo e regras de aplicação;
+- informações sobre coleta e amostragem;
+- estatísticas descritivas.
+
+É comum em:
+
+- pesquisas acadêmicas;
+- inquéritos de saúde;
+- levantamentos estatísticos;
+- ciências sociais.
+
+
+#### Comparação
+
+| Característica           | Dicionário de dados           | Codebook                  |
+|--------------------------|-------------------------------|---------------------------|
+| Foco                     | Estrutural e técnico          | Descritivo e analítico    |
+| Origem comum             | Esquema de banco de dados     | Questionário ou pesquisa  |
+| Público principal        | Desenvolvedores e engenheiros | Pesquisadores e analistas |
+| Texto das perguntas      | Raramente                     | Frequentemente            |
+| Códigos de resposta      | Pode conter                   | Geralmente contém         |
+| Estatísticas descritivas | Normalmente não               | Pode conter               |
+| Chaves e restrições      | Frequentemente                | Raramente                 |
+
+
+#### Disseminação e indicadores
+
+O dicionário de dados e o codebook aumentam a transparência e a reprodutibilidade das análises.
+
+
+##### Papel do dicionário de dados
+
+- padronizar nomes;
+- definir tipos e regras de integridade;
+- documentar a origem dos campos;
+- descrever relacionamentos entre tabelas;
+- facilitar a interoperabilidade;
+- reduzir erros em junções.
+
+
+##### Papel do codebook
+
+- explicar o significado das variáveis;
+- mapear códigos para categorias;
+- documentar dados ausentes;
+- apresentar regras de aplicação;
+- contextualizar numeradores e denominadores;
+- apoiar a interpretação dos indicadores.
+
+------------------------------------------------------------------------
+
+
+
+
+### Dados de produção e dados analíticos
+
+Dados de produção sustentam operações diárias. Dados analíticos são preparados para consultas, indicadores e tomada de decisão.
+
+| Característica | Produção — OLTP               | Analítico — OLAP                   |
+|----------------|-------------------------------|------------------------------------|
+| Objetivo       | Executar operações            | Apoiar análises                    |
+| Dados          | Atuais e detalhados           | Históricos e consolidados          |
+| Operações      | Inserções e atualizações      | Consultas e agregações             |
+| Consultas      | Curtas e frequentes           | Complexas e extensas               |
+| Modelagem      | Geralmente normalizada        | Frequentemente desnormalizada      |
+| Prioridade     | Consistência e baixa latência | Leitura e processamento analítico  |
+| Exemplos       | Venda, pagamento, cadastro    | Indicadores, tendências, previsões |
+
+Separar os ambientes reduz o impacto das consultas analíticas sobre os sistemas operacionais.
+
+------------------------------------------------------------------------
+
+
+### Extração, transformação e carga
+
+**ETL** significa **Extração, Transformação e Carga** (*Extract, Transform, Load*).
+
+É um processo usado para integrar dados de diferentes origens e disponibilizá-los em um repositório analítico.
+
+
+#### Extração
+
+Coleta dados de fontes como:
+
+- bancos relacionais;
+- planilhas;
+- arquivos CSV;
+- APIs;
+- sistemas externos;
+- registros de eventos.
+
+
+#### Transformação
+
+Prepara os dados por meio de operações como:
+
+- correção;
+- limpeza;
+- filtragem;
+- padronização;
+- deduplicação;
+- conversão de tipos;
+- integração de fontes;
+- aplicação de regras de negócio.
+
+
+#### Carga
+
+Grava os dados tratados no destino, como:
+
+- banco analítico;
+- *data warehouse*;
+- *data lake*;
+- *data mart*.
+
+
+#### Importância do ETL
+
+- **Confiabilidade:** melhora a qualidade dos dados.
+- **Centralização:** reúne informações de diferentes fontes.
+- **Padronização:** uniformiza formatos e conceitos.
+- **Desempenho:** antecipa transformações necessárias às análises.
+- **Rastreabilidade:** permite documentar a origem e o processamento.
+
+------------------------------------------------------------------------
+
+
+
+### Modelagem analítica de dados
+
+Depois da extração, transformação e carga, os dados precisam ser organizados para facilitar consultas, indicadores e análises.
+
+Um fluxo analítico típico pode ser representado por:
+
+1.  sistemas de origem;
+2.  área de *staging*;
+3.  processamento ETL ou ELT;
+4.  *data warehouse* ou *data mart*;
+5.  modelo dimensional;
+6.  consultas OLAP;
+7.  relatórios, painéis e análises estatísticas.
+
+| Camada           | Finalidade                                            |
+|------------------|-------------------------------------------------------|
+| Origem           | Disponibilizar os dados produzidos pelos sistemas     |
+| *Staging*        | Receber e preservar os dados extraídos                |
+| ETL ou ELT       | Limpar, validar, padronizar e integrar                |
+| *Data warehouse* | Integrar dados históricos de diferentes áreas         |
+| *Data mart*      | Organizar dados para uma área ou finalidade analítica |
+| OLAP             | Consultar e agregar dados por diferentes dimensões    |
+| Aplicação        | Produzir indicadores, relatórios, painéis e modelos   |
+
+
+#### Área de *staging*
+
+A área de *staging* é uma camada intermediária utilizada para receber os dados extraídos das fontes originais.
+
+Ela pode armazenar:
+
+- arquivos DBC;
+- arquivos DBF;
+- arquivos CSV;
+- respostas brutas de APIs;
+- planilhas;
+- arquivos JSON;
+- tabelas temporárias;
+- metadados da extração.
+
+A área de *staging* deve preservar os dados o mais próximo possível da fonte original.
+
+Normalmente são acrescentados apenas metadados técnicos, como:
+
+- nome do arquivo;
+- endereço de origem;
+- sistema;
+- subsistema;
+- competência;
+- data e hora da extração;
+- tamanho do arquivo;
+- hash;
+- quantidade de registros;
+- situação da validação.
+
+
+``` sourceCode
+staging_pa <- dados_pa |>
+  dplyr::mutate(
+    arquivo_origem = "PAAC2501.dbc",
+    sistema_origem = "SIA",
+    subsistema_origem = "PA",
+    competencia_origem = "202501",
+    data_extracao = Sys.time()
+  )
+```
+
+
+A camada de *staging* não deve substituir os dados originais por valores corrigidos sem manter a rastreabilidade da alteração.
+
+> A finalidade principal do *staging* é permitir auditoria, reprocessamento e recuperação dos dados exatamente como foram recebidos.
+
+
+#### Dados brutos, padronizados e analíticos
+
+Uma arquitetura simples pode separar os dados em três estados.
+
+| Estado      | Conteúdo                                      |
+|-------------|-----------------------------------------------|
+| Bruto       | Dados preservados como foram recebidos        |
+| Padronizado | Tipos, nomes, códigos e formatos corrigidos   |
+| Analítico   | Tabelas integradas e organizadas para análise |
+
+
+##### Dados brutos
+
+
+``` sourceCode
+dados_brutos <- read.dbc::read.dbc(
+  "PAAC2501.dbc"
+)
+```
+
+
+
+##### Dados padronizados
+
+
+``` sourceCode
+dados_padronizados <- dados_brutos |>
+  dplyr::transmute(
+    competencia = as.character(PA_CMP),
+    cnes = stringr::str_pad(
+      PA_CNES,
+      width = 7,
+      pad = "0"
+    ),
+    procedimento = stringr::str_pad(
+      PA_PROC_ID,
+      width = 10,
+      pad = "0"
+    ),
+    quantidade_aprovada = as.numeric(PA_QTDAPR),
+    valor_aprovado = as.numeric(PA_VALAPR)
+  )
+```
+
+
+
+##### Dados analíticos
+
+
+``` sourceCode
+dados_analiticos <- dados_padronizados |>
+  dplyr::left_join(
+    dim_procedimento,
+    by = "procedimento"
+  ) |>
+  dplyr::left_join(
+    dim_estabelecimento,
+    by = "cnes"
+  )
+```
+
+
+
+
+#### *Data warehouse*
+
+Um *data warehouse* é um repositório integrado e histórico destinado à análise.
+
+Suas características principais são:
+
+- integração de diferentes fontes;
+- conservação do histórico;
+- padronização de conceitos;
+- organização orientada a temas;
+- separação dos sistemas operacionais;
+- apoio a consultas e decisões;
+- rastreabilidade dos dados.
+
+Em um ambiente do SUS, um *data warehouse* pode integrar:
+
+- produção ambulatorial do SIA;
+- internações do SIH;
+- estabelecimentos do CNES;
+- procedimentos do SIGTAP;
+- mortalidade do SIM;
+- nascimentos do SINASC;
+- notificações do SINAN;
+- preços do BPS;
+- preços regulados pela CMED;
+- informações orçamentárias e financeiras.
+
+
+#### *Data mart*
+
+Um *data mart* é um subconjunto analítico organizado para atender uma área, tema ou processo específico.
+
+Exemplos:
+
+- *data mart* de produção ambulatorial;
+- *data mart* de internações;
+- *data mart* de oncologia;
+- *data mart* de medicamentos;
+- *data mart* de estabelecimentos;
+- *data mart* de custos e preços;
+- *data mart* de avaliação econômica.
+
+Um *data mart* de produção ambulatorial pode combinar:
+
+- SIA PA;
+- SIA APAC;
+- CNES;
+- SIGTAP;
+- municípios;
+- gestores;
+- formas de financiamento;
+- valores e quantidades.
+
+> O *data warehouse* possui escopo institucional mais amplo. O *data mart* possui escopo direcionado a um domínio analítico.
+
+
+#### Modelagem dimensional
+
+A modelagem dimensional organiza os dados em:
+
+- tabelas-fato;
+- tabelas de dimensão;
+- medidas;
+- métricas;
+- chaves;
+- hierarquias.
+
+Essa estrutura facilita agregações, filtros e consultas OLAP.
+
+
+#### Granularidade
+
+A granularidade, também chamada de grão, define o que cada linha de uma tabela-fato representa.
+
+Exemplos:
+
+- um procedimento realizado por estabelecimento e competência;
+- uma autorização de internação;
+- um item de serviço profissional de uma AIH;
+- uma dispensação de medicamento;
+- uma compra de medicamento;
+- um óbito;
+- um nascimento.
+
+A granularidade deve ser definida antes da criação das métricas.
+
+
+##### Exemplo
+
+> Uma linha da tabela-fato representa um procedimento ambulatorial informado por estabelecimento, município de processamento, competência e instrumento de registro.
+
+Não se deve misturar granularidades diferentes na mesma tabela-fato sem uma regra explícita.
+
+Por exemplo:
+
+- quantidade de procedimentos;
+- quantidade de APAC;
+- quantidade de pessoas;
+- quantidade de estabelecimentos.
+
+Essas medidas não representam necessariamente a mesma unidade de análise.
+
+
+
+#### Tabela-fato
+
+A tabela-fato registra eventos ou observações mensuráveis.
+
+Ela normalmente contém:
+
+- chaves das dimensões;
+- medidas numéricas;
+- identificadores operacionais;
+- metadados de proveniência.
+
+
+##### Exemplo de tabela-fato ambulatorial
+
+| Campo                    | Função                               |
+|--------------------------|--------------------------------------|
+| `sk_tempo`               | Chave da dimensão de tempo           |
+| `sk_estabelecimento`     | Chave da dimensão de estabelecimento |
+| `sk_procedimento`        | Chave da dimensão de procedimento    |
+| `sk_municipio`           | Chave da dimensão geográfica         |
+| `sk_financiamento`       | Chave da dimensão de financiamento   |
+| `instrumento_registro`   | BPA-C, BPA-I ou APAC                 |
+| `quantidade_apresentada` | Medida de produção apresentada       |
+| `quantidade_aprovada`    | Medida de produção aprovada          |
+| `valor_apresentado`      | Valor apresentado                    |
+| `valor_aprovado`         | Valor aprovado                       |
+| `arquivo_origem`         | Proveniência do registro             |
+
+
+``` sourceCode
+fato_producao_ambulatorial <- pa |>
+  dplyr::transmute(
+    competencia,
+    cnes,
+    procedimento,
+    municipio_processamento,
+    instrumento_registro,
+    quantidade_apresentada,
+    quantidade_aprovada,
+    valor_apresentado,
+    valor_aprovado,
+    arquivo_origem
+  )
+```
+
+
+
+
+#### Dimensões
+
+As dimensões descrevem o contexto dos fatos.
+
+Exemplos:
+
+- tempo;
+- estabelecimento;
+- procedimento;
+- município;
+- gestor;
+- financiamento;
+- complexidade;
+- modalidade de atendimento;
+- diagnóstico;
+- medicamento.
+
+
+##### Dimensão tempo
+
+
+``` sourceCode
+dim_tempo <- fato_producao_ambulatorial |>
+  dplyr::distinct(competencia) |>
+  dplyr::mutate(
+    ano = as.integer(
+      substr(competencia, 1, 4)
+    ),
+    mes = as.integer(
+      substr(competencia, 5, 6)
+    )
+  )
+```
+
+
+
+##### Dimensão procedimento
+
+
+``` sourceCode
+dim_procedimento <- sigtap |>
+  dplyr::distinct(
+    competencia,
+    procedimento,
+    nome_procedimento,
+    grupo,
+    subgrupo,
+    forma_organizacao,
+    complexidade,
+    tipo_financiamento
+  )
+```
+
+
+
+##### Dimensão estabelecimento
+
+
+``` sourceCode
+dim_estabelecimento <- cnes |>
+  dplyr::distinct(
+    competencia,
+    cnes,
+    nome_estabelecimento,
+    municipio,
+    natureza_juridica,
+    tipo_estabelecimento,
+    esfera_administrativa
+  )
+```
+
+
+
+
+#### Atributos dimensionais
+
+Os atributos dimensionais são utilizados para:
+
+- filtrar;
+- agrupar;
+- classificar;
+- ordenar;
+- construir hierarquias;
+- descrever os fatos.
+
+Exemplos de atributos da dimensão procedimento:
+
+- código;
+- descrição;
+- grupo;
+- subgrupo;
+- forma de organização;
+- complexidade;
+- modalidade;
+- tipo de financiamento.
+
+Exemplos de atributos da dimensão estabelecimento:
+
+- CNES;
+- nome;
+- município;
+- UF;
+- região de saúde;
+- natureza jurídica;
+- esfera administrativa;
+- tipo de estabelecimento.
+
+
+#### Hierarquias
+
+Uma dimensão pode possuir diferentes níveis de agregação.
+
+
+##### Hierarquia geográfica
+
+``` text
+Brasil
+└── Região
+    └── Unidade da Federação
+        └── Região de Saúde
+            └── Município
+                └── Estabelecimento
+```
+
+
+##### Hierarquia temporal
+
+``` text
+Ano
+└── Semestre
+    └── Trimestre
+        └── Mês
+            └── Dia
+```
+
+
+##### Hierarquia do SIGTAP
+
+``` text
+Grupo
+└── Subgrupo
+    └── Forma de organização
+        └── Procedimento
+```
+
+As hierarquias permitem navegar entre níveis resumidos e detalhados.
+
+
+
+#### Medidas
+
+Medidas são valores numéricos armazenados na tabela-fato.
+
+Exemplos:
+
+- quantidade apresentada;
+- quantidade aprovada;
+- valor apresentado;
+- valor aprovado;
+- dias de permanência;
+- quantidade de internações;
+- quantidade de dispensações;
+- preço unitário;
+- custo total.
+
+
+#### Métricas
+
+Métricas são cálculos produzidos a partir das medidas.
+
+Exemplos:
+
+- valor médio por procedimento;
+- custo médio por internação;
+- taxa de aprovação;
+- produção por estabelecimento;
+- valor por habitante;
+- quantidade por competência;
+- participação do FAEC no valor total.
+
+
+``` sourceCode
+indicadores <- fato_producao_ambulatorial |>
+  dplyr::summarise(
+    quantidade_apresentada = sum(
+      quantidade_apresentada,
+      na.rm = TRUE
+    ),
+    quantidade_aprovada = sum(
+      quantidade_aprovada,
+      na.rm = TRUE
+    ),
+    valor_aprovado = sum(
+      valor_aprovado,
+      na.rm = TRUE
+    ),
+    taxa_aprovacao = quantidade_aprovada /
+      quantidade_apresentada,
+    valor_medio = valor_aprovado /
+      quantidade_aprovada
+  )
+```
+
+
+> Medida é o valor armazenado ou diretamente observado. Métrica é o resultado de uma regra de cálculo aplicada às medidas.
+
+
+#### Aditividade das medidas
+
+As medidas podem ser classificadas conforme sua possibilidade de agregação.
+
+| Tipo        | Característica                        | Exemplo                 |
+|-------------|---------------------------------------|-------------------------|
+| Aditiva     | Pode ser somada em todas as dimensões | Valor aprovado          |
+| Semiaditiva | Pode ser somada em algumas dimensões  | Estoque de medicamentos |
+| Não aditiva | Não deve ser somada diretamente       | Percentual ou média     |
+
+
+##### Medida aditiva
+
+
+``` sourceCode
+sum(
+  fato_producao_ambulatorial$valor_aprovado,
+  na.rm = TRUE
+)
+```
+
+
+
+##### Medida não aditiva
+
+Uma taxa deve ser recalculada usando seus componentes:
+
+
+``` sourceCode
+taxa_aprovacao <-
+  sum(
+    fato_producao_ambulatorial$quantidade_aprovada,
+    na.rm = TRUE
+  ) /
+  sum(
+    fato_producao_ambulatorial$quantidade_apresentada,
+    na.rm = TRUE
+  )
+```
+
+
+Não é adequado somar ou calcular uma média simples das taxas previamente calculadas para cada estabelecimento.
+
+
+
+#### Chaves naturais
+
+Chaves naturais são identificadores provenientes dos sistemas de origem.
+
+Exemplos:
+
+- código CNES;
+- código do município;
+- código do procedimento;
+- número da AIH;
+- número da APAC;
+- código CID-10.
+
+Uma chave natural pode mudar de significado ou ser reutilizada ao longo do tempo.
+
+
+#### Chaves substitutas
+
+Chaves substitutas, também chamadas de *surrogate keys*, são identificadores internos criados no ambiente analítico.
+
+Exemplos:
+
+- `sk_estabelecimento`;
+- `sk_procedimento`;
+- `sk_municipio`;
+- `sk_tempo`.
+
+Elas são úteis para:
+
+- controlar versões históricas;
+- evitar dependência exclusiva das chaves operacionais;
+- representar alterações dimensionais;
+- melhorar a integração entre fontes.
+
+
+``` sourceCode
+dim_estabelecimento <- dim_estabelecimento |>
+  dplyr::mutate(
+    sk_estabelecimento = dplyr::row_number()
+  )
+```
+
+
+
+#### Dimensões conformadas
+
+Dimensões conformadas são compartilhadas por diferentes tabelas-fato.
+
+Exemplos:
+
+- a mesma dimensão tempo utilizada pelo SIA e pelo SIH;
+- a mesma dimensão estabelecimento utilizada por produção ambulatorial e hospitalar;
+- a mesma dimensão município utilizada por SIA, SIH, SIM e SINASC;
+- a mesma dimensão procedimento utilizada por diferentes subsistemas.
+
+Isso permite comparar diferentes fatos usando conceitos equivalentes.
+
+``` text
+dim_tempo
+    ├── fato_producao_ambulatorial
+    ├── fato_internacao
+    ├── fato_mortalidade
+    └── fato_nascimento
+```
+
+
+#### Dimensões historizadas
+
+As características de uma dimensão podem mudar ao longo do tempo.
+
+Exemplos:
+
+- mudança do tipo de estabelecimento;
+- alteração da natureza jurídica;
+- mudança da gestão;
+- alteração do nome de um procedimento;
+- mudança da forma de financiamento;
+- alteração do valor de um procedimento no SIGTAP.
+
+As dimensões historizadas preservam essas alterações.
+
+
+#### Dimensões lentamente mutáveis
+
+As dimensões lentamente mutáveis são conhecidas como *Slowly Changing Dimensions* — SCD.
+
+
+##### SCD tipo 1
+
+O valor anterior é substituído.
+
+``` text
+Antes: tipo_estabelecimento = Hospital Geral
+Depois: tipo_estabelecimento = Hospital Especializado
+```
+
+O histórico não é preservado.
+
+
+##### SCD tipo 2
+
+Uma nova linha é criada para representar a nova versão.
+
+| `sk_estabelecimento` | `cnes`  | Tipo                   | Início  | Fim     | Atual |
+|---------------------:|---------|------------------------|---------|---------|-------|
+|                  101 | 1234567 | Hospital Geral         | 2020-01 | 2023-12 | Não   |
+|                  205 | 1234567 | Hospital Especializado | 2024-01 | —       | Sim   |
+
+O SCD tipo 2 é adequado quando a análise precisa considerar a característica válida em cada competência.
+
+
+##### SCD tipo 3
+
+O valor atual e o valor anterior são mantidos na mesma linha.
+
+| `cnes`  | Tipo atual             | Tipo anterior  |
+|---------|------------------------|----------------|
+| 1234567 | Hospital Especializado | Hospital Geral |
+
+Esse modelo mantém apenas uma parte limitada do histórico.
+
+
+
+#### Esquema estrela
+
+O esquema estrela, ou *star schema*, possui:
+
+- uma tabela-fato central;
+- dimensões ligadas diretamente à tabela-fato;
+- dimensões predominantemente desnormalizadas.
+
+``` text
+                 dim_tempo
+                     |
+dim_municipio — fato_producao — dim_procedimento
+                     |
+            dim_estabelecimento
+                     |
+            dim_financiamento
+```
+
+
+##### Vantagens
+
+- estrutura simples;
+- menor quantidade de junções;
+- consultas mais fáceis;
+- bom desempenho analítico;
+- maior facilidade para ferramentas OLAP e painéis.
+
+
+##### Desvantagens
+
+- repetição de atributos nas dimensões;
+- maior necessidade de controle durante a atualização;
+- dimensões potencialmente mais largas.
+
+
+
+#### Esquema floco de neve
+
+O esquema floco de neve, ou *snowflake schema*, normaliza parte das dimensões.
+
+``` text
+fato_producao
+      |
+dim_procedimento
+      |
+dim_forma_organizacao
+      |
+dim_subgrupo
+      |
+dim_grupo
+```
+
+Outro exemplo:
+
+``` text
+fato_producao
+      |
+dim_estabelecimento
+      |
+dim_municipio
+      |
+dim_regiao_saude
+      |
+dim_uf
+```
+
+
+##### Vantagens
+
+- reduz repetição de atributos;
+- explicita hierarquias;
+- facilita a manutenção de domínios compartilhados;
+- melhora o controle de classificações complexas.
+
+
+##### Desvantagens
+
+- aumenta a quantidade de junções;
+- torna as consultas mais complexas;
+- pode reduzir o desempenho;
+- dificulta o uso por analistas menos familiarizados com o modelo.
+
+
+
+#### Comparação entre estrela e floco de neve
+
+| Característica               | Esquema estrela  | Esquema floco de neve |
+|------------------------------|------------------|-----------------------|
+| Dimensões                    | Desnormalizadas  | Normalizadas          |
+| Número de tabelas            | Menor            | Maior                 |
+| Número de junções            | Menor            | Maior                 |
+| Facilidade de consulta       | Maior            | Menor                 |
+| Redundância                  | Maior            | Menor                 |
+| Representação de hierarquias | Mais simples     | Mais explícita        |
+| Desempenho analítico         | Geralmente maior | Depende das junções   |
+| Manutenção de domínios       | Mais duplicada   | Mais centralizada     |
+
+Para análises e painéis, o esquema estrela costuma ser mais simples. O esquema floco de neve pode ser útil quando as dimensões possuem hierarquias extensas e compartilhadas.
+
+
+#### Constelação de fatos
+
+Uma constelação de fatos, também chamada de chamada de *galaxy schema*, utiliza várias tabelas-fato compartilhando dimensões conformadas.
+
+``` text
+fato_producao_ambulatorial ─┐
+fato_internacao             ├── dim_tempo
+fato_mortalidade            ├── dim_municipio
+fato_nascimento             └── dim_estabelecimento
+```
+
+Esse modelo permite integrar diferentes eventos sem misturar suas granularidades.
+
+Por exemplo:
+
+| Tabela-fato           | Granularidade                                  |
+|-----------------------|------------------------------------------------|
+| Produção ambulatorial | Procedimento por estabelecimento e competência |
+| Internação            | AIH                                            |
+| Serviço hospitalar    | Item de serviço de uma AIH                     |
+| Mortalidade           | Declaração de óbito                            |
+| Nascimento            | Declaração de nascido vivo                     |
+| Compra                | Item adquirido em uma compra                   |
+
+
+#### Fatos sem medidas
+
+Uma tabela-fato pode registrar apenas a ocorrência de uma relação, sem possuir uma medida numérica explícita.
+
+Esse modelo é chamado de *factless fact table*.
+
+Exemplos:
+
+- estabelecimento habilitado para determinado serviço;
+- procedimento permitido para determinado instrumento;
+- profissional vinculado a um estabelecimento;
+- município pertencente a uma região de saúde.
+
+
+``` sourceCode
+fato_habilitacao <- habilitacoes |>
+  dplyr::distinct(
+    competencia,
+    cnes,
+    codigo_habilitacao
+  )
+```
+
+
+A quantidade de ocorrências pode ser calculada pela contagem das linhas.
+
+
+#### Dimensão degenerada
+
+Uma dimensão degenerada é um identificador operacional mantido diretamente na tabela-fato, sem uma tabela de dimensão própria.
+
+Exemplos:
+
+- número da AIH;
+- número da APAC;
+- número da autorização;
+- identificador da compra.
+
+
+``` sourceCode
+fato_internacao <- sih_rd |>
+  dplyr::transmute(
+    numero_aih,
+    competencia,
+    cnes,
+    procedimento,
+    valor_total
+  )
+```
+
+
+
+#### Exemplo de esquema estrela para o SIA
+
+
+##### Tabela-fato
+
+``` text
+fato_producao_ambulatorial
+```
+
+
+##### Dimensões
+
+``` text
+dim_tempo
+dim_estabelecimento
+dim_procedimento
+dim_municipio
+dim_gestor
+dim_financiamento
+dim_instrumento_registro
+```
+
+
+##### Medidas
+
+``` text
+quantidade_apresentada
+quantidade_aprovada
+valor_apresentado
+valor_aprovado
+```
+
+
+##### Métricas derivadas
+
+``` text
+taxa_aprovacao
+valor_medio_procedimento
+valor_por_estabelecimento
+quantidade_por_habitante
+participacao_faec
+```
+
+
+
+#### Construção de uma visão analítica
+
+
+``` sourceCode
+mart_producao_ambulatorial <- fato_producao_ambulatorial |>
+  dplyr::left_join(
+    dim_tempo,
+    by = "competencia"
+  ) |>
+  dplyr::left_join(
+    dim_estabelecimento,
+    by = c(
+      "cnes",
+      "competencia"
+    )
+  ) |>
+  dplyr::left_join(
+    dim_procedimento,
+    by = c(
+      "procedimento",
+      "competencia"
+    )
+  )
+```
+
+
+O uso da competência na junção permite recuperar a versão da dimensão válida no período analisado.
+
+
+#### Validação das junções dimensionais
+
+Uma junção incorreta pode multiplicar as linhas da tabela-fato.
+
+Antes da integração, verifique se a chave da dimensão é única:
+
+
+``` sourceCode
+duplicados_dimensao <- dim_procedimento |>
+  dplyr::count(
+    competencia,
+    procedimento
+  ) |>
+  dplyr::filter(n > 1)
+
+stopifnot(
+  nrow(duplicados_dimensao) == 0
+)
+```
+
+
+Depois da integração, compare o número de linhas:
+
+
+``` sourceCode
+linhas_antes <- nrow(
+  fato_producao_ambulatorial
+)
+
+linhas_depois <- nrow(
+  mart_producao_ambulatorial
+)
+
+stopifnot(
+  linhas_antes == linhas_depois
+)
+```
+
+
+Também verifique os fatos sem correspondência:
+
+
+``` sourceCode
+sem_procedimento <- fato_producao_ambulatorial |>
+  dplyr::anti_join(
+    dim_procedimento,
+    by = c(
+      "procedimento",
+      "competencia"
+    )
+  )
+```
+
+
+
+#### Regras para construção de um *data mart*
+
+Antes de publicar um *data mart*, documente:
+
+| Elemento                     | Definição                                                                                                                | Exemplo aplicado aos dados do SUS                                                                                                                            |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Finalidade analítica         | Objetivo para o qual o conjunto de dados foi construído e quais perguntas pretende responder.                            | Analisar a produção ambulatorial, os valores aprovados e a participação do FAEC por estabelecimento.                                                         |
+| Fontes utilizadas            | Sistemas, arquivos, APIs, tabelas e documentos utilizados na construção do conjunto analítico.                           | SIA/PA, SIA/APAC, CNES, SIGTAP, arquivos do repositório FTP do Ministério da Saúde e dicionários oficiais.                                                                           |
+| Granularidade                | Unidade representada por cada linha da tabela. Também é chamada de grão.                                                 | Um procedimento ambulatorial por estabelecimento, competência, município de processamento e instrumento de registro.                                         |
+| Chaves naturais              | Identificadores provenientes dos sistemas de origem e que possuem significado no domínio analisado.                      | Código CNES, código do procedimento, competência, número da AIH, número da APAC e código do município.                                                       |
+| Chaves substitutas           | Identificadores internos criados no ambiente analítico para relacionar fatos e dimensões e controlar versões históricas. | `sk_estabelecimento`, `sk_procedimento`, `sk_tempo` e `sk_municipio`.                                                                                        |
+| Dimensões                    | Tabelas ou atributos que descrevem o contexto dos fatos e são utilizados para filtrar, classificar e agrupar os dados.   | Tempo, estabelecimento, procedimento, município, gestor, financiamento e instrumento de registro.                                                            |
+| Medidas                      | Valores numéricos observados ou armazenados diretamente na tabela-fato.                                                  | Quantidade apresentada, quantidade aprovada, valor apresentado e valor aprovado.                                                                             |
+| Métricas                     | Indicadores calculados a partir de uma ou mais medidas segundo uma regra definida.                                       | Taxa de aprovação, valor médio por procedimento, valor por habitante e participação do FAEC.                                                                 |
+| Filtros                      | Critérios utilizados para selecionar os registros incluídos na análise.                                                  | Competências de 2024, UF de processamento igual a `AC`, procedimentos do grupo `03` e registros com quantidade aprovada maior que zero.                      |
+| Regras de integração         | Condições utilizadas para relacionar tabelas, resolver duplicidades e evitar multiplicação indevida dos registros.       | Integrar SIA e SIGTAP por procedimento e competência; integrar SIA e CNES por CNES e competência.                                                            |
+| Tratamento do histórico      | Forma como alterações nos atributos das dimensões são registradas ao longo do tempo.                                     | Manter uma versão do estabelecimento para cada período de vigência utilizando uma dimensão SCD tipo 2.                                                       |
+| Periodicidade de atualização | Frequência prevista para incorporar novos arquivos, competências ou revisões.                                            | Atualização mensal após a publicação dos arquivos do SIA no repositório FTP do Ministério da Saúde.                                                                                  |
+| Controles de qualidade       | Verificações utilizadas para avaliar a integridade, completude, consistência e rastreabilidade dos dados.                | Comparação de bytes remotos e locais, contagem de registros, validação de chaves, verificação de duplicidades e comparação com o TabNet.                     |
+| Limitações de uso            | Restrições metodológicas, temporais, operacionais ou semânticas que precisam ser consideradas na interpretação.          | Valores aprovados não representam necessariamente custos reais; produção não equivale ao número de pessoas atendidas; arquivos recentes podem ser revisados. |
+
+> O *data mart* deve simplificar a análise sem ocultar a origem, a granularidade ou as regras utilizadas para transformar os dados.
+
+
+
+### Validação dos dados importados
+
+A importação não termina quando o arquivo é carregado. É necessário verificar se os dados foram interpretados corretamente.
+
+
+#### Estrutura
+
+Verifique:
+
+- número de linhas;
+- número de colunas;
+- nomes das variáveis;
+- tipos atribuídos;
+- ordem e presença das colunas esperadas.
+
+
+#### Conteúdo
+
+Verifique:
+
+- valores ausentes;
+- registros duplicados;
+- categorias inesperadas;
+- valores fora dos limites válidos;
+- datas inválidas;
+- caracteres corrompidos;
+- identificadores com perda de zeros à esquerda.
+
+
+#### Consistência
+
+Compare os dados importados com a fonte original:
+
+- total de registros;
+- totais por período;
+- soma de valores;
+- quantidade de identificadores únicos;
+- frequências das categorias;
+- valores mínimo e máximo.
+
+As validações devem ser automatizadas sempre que a importação fizer parte de uma rotina recorrente.
+
+
+
+### Validação dos dados importados
+
+A importação não termina quando o arquivo é carregado. É necessário verificar se o download foi concluído, se os dados foram interpretados corretamente e se os resultados são compatíveis com as informações publicadas pela fonte oficial.
+
+As validações devem ser automatizadas sempre que a importação fizer parte de uma rotina recorrente.
+
+
+#### Estrutura
+
+Verifique:
+
+- número de linhas;
+- número de colunas;
+- nomes das variáveis;
+- tipos atribuídos;
+- ordem das colunas;
+- presença das colunas esperadas;
+- tamanho dos campos;
+- codificação dos caracteres;
+- preservação de identificadores armazenados como texto.
+
+
+``` sourceCode
+dim(dados)
+names(dados)
+str(dados)
+```
+
+
+Também é possível interromper o processamento quando uma coluna obrigatória estiver ausente:
+
+
+``` sourceCode
+colunas_esperadas <- c(
+  "pa_cmp",
+  "pa_cnes",
+  "pa_proc_id",
+  "pa_qtdpro",
+  "pa_valpro"
+)
+
+faltantes <- setdiff(
+  colunas_esperadas,
+  names(dados)
+)
+
+if (length(faltantes) > 0) {
+  stop(
+    "Colunas ausentes: ",
+    paste(faltantes, collapse = ", ")
+  )
+}
+```
+
+
+
+#### Conteúdo
+
+Verifique:
+
+- valores ausentes;
+- registros duplicados;
+- categorias inesperadas;
+- valores fora dos limites válidos;
+- datas inválidas;
+- caracteres corrompidos;
+- identificadores com perda de zeros à esquerda;
+- quantidades ou valores negativos;
+- códigos incompatíveis com o dicionário da competência.
+
+
+``` sourceCode
+sum(is.na(dados))
+sum(duplicated(dados))
+
+summary(dados)
+```
+
+
+Para verificar categorias inesperadas:
+
+
+``` sourceCode
+categorias_validas <- c("M", "F", "I")
+
+setdiff(
+  unique(dados$pa_sexo),
+  categorias_validas
+)
+```
+
+
+
+#### Consistência
+
+Compare os dados importados com a fonte original:
+
+- total de registros;
+- totais por período;
+- soma de valores;
+- quantidade de identificadores únicos;
+- frequências das categorias;
+- valores mínimo e máximo;
+- cobertura geográfica;
+- intervalo de competências;
+- quantidade de arquivos processados.
+
+
+``` sourceCode
+dados |>
+  dplyr::summarise(
+    registros = dplyr::n(),
+    estabelecimentos = dplyr::n_distinct(pa_cnes),
+    procedimentos = dplyr::n_distinct(pa_proc_id),
+    quantidade = sum(pa_qtdpro, na.rm = TRUE),
+    valor = sum(pa_valpro, na.rm = TRUE)
+  )
+```
+
+
+Diferenças não significam necessariamente erro. Elas podem decorrer de:
+
+- competências distintas;
+- atualizações ou reapresentações;
+- filtros aplicados pelo sistema oficial;
+- diferenças entre local de residência e local de atendimento;
+- competência de ocorrência e competência de processamento;
+- registros rejeitados, aprovados ou apresentados;
+- regras de supressão;
+- critérios de agregação;
+- versões diferentes dos arquivos ou dicionários.
+
+
+#### Comparação com dados oficiais consolidados
+
+Os microdados devem ser comparados com produtos oficiais consolidados, como:
+
+- relatórios institucionais;
+- publicações técnicas;
+- boletins;
+- painéis de monitoramento;
+- tabuladores oficiais;
+- TabNet;
+- Sala de Apoio à Gestão Estratégica — SAGE;
+- planilhas ou arquivos consolidados publicados pelo Ministério da Saúde.
+
+O [TabNet](https://datasus.saude.gov.br/informacoes-de-saude-tabnet/) permite consultar informações agregadas de sistemas como SIA, SIH, SIM, SINASC e CNES. A [SAGE](https://www.gov.br/saude/pt-br/composicao/seidigi/demas/sage) reúne informações estratégicas e produtos de monitoramento do Ministério da Saúde.
+
+Esses produtos são importantes porque apresentam resultados processados segundo regras institucionais. Eles podem funcionar como referências externas para avaliar se a extração dos microdados produziu valores plausíveis.
+
+Antes da comparação, registre:
+
+| Elemento                | Verificação                                         |
+|-------------------------|-----------------------------------------------------|
+| Sistema                 | SIA, SIH, SIM, SINASC, CNES ou outro                |
+| Período                 | Mesma competência ou período                        |
+| Geografia               | Mesma UF, município ou região                       |
+| Perspectiva territorial | Residência, atendimento ou processamento            |
+| Situação do registro    | Apresentado, aprovado, pago ou consolidado          |
+| Unidade                 | Procedimentos, autorizações, internações ou pessoas |
+| Medida                  | Frequência, quantidade, valor ou taxa               |
+| Atualização             | Mesma data ou versão disponível                     |
+| Filtros                 | Mesmos critérios de seleção                         |
+
+> Um valor publicado em relatório ou tabulador oficial não deve ser comparado diretamente com os microdados sem reproduzir os mesmos filtros, conceitos e regras de agregação.
+
+
+##### Exemplo de comparação
+
+
+``` sourceCode
+total_microdados <- dados |>
+  dplyr::summarise(
+    quantidade = sum(pa_qtdpro, na.rm = TRUE)
+  ) |>
+  dplyr::pull(quantidade)
+
+total_oficial <- 125430
+
+diferenca <- total_microdados - total_oficial
+
+diferenca_percentual <- 100 *
+  diferenca /
+  total_oficial
+
+data.frame(
+  total_microdados,
+  total_oficial,
+  diferenca,
+  diferenca_percentual
+)
+```
+
+
+É recomendável definir previamente uma tolerância:
+
+
+``` sourceCode
+tolerancia_percentual <- 0.5
+
+if (abs(diferenca_percentual) > tolerancia_percentual) {
+  warning(
+    "Diferença superior à tolerância definida."
+  )
+}
+```
+
+
+
+
+#### Validação do download por FTP
+
+A existência do arquivo local não garante que o download foi concluído corretamente. Uma transferência interrompida pode deixar um arquivo parcial com o nome esperado.
+
+Sempre que o servidor disponibilizar essa informação, compare:
+
+- número de bytes informado pelo servidor;
+- número de bytes do arquivo local;
+- nome do arquivo;
+- data de modificação;
+- extensão esperada;
+- hash publicado pela fonte, quando disponível.
+
+
+##### Comparação entre bytes remotos e locais
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/",
+  "dissemin/publicos/SIASUS/200801_/Dados/",
+  "PAAC2501.dbc"
+)
+
+destino <- "PAAC2501.dbc"
+
+handle <- curl::new_handle()
+
+resposta <- curl::curl_fetch_disk(
+  url,
+  destino,
+  handle = handle
+)
+
+metadados <- curl::handle_data(handle)
+
+bytes_remotos <- as.numeric(
+  metadados$download_content_length
+)
+
+bytes_locais <- unname(
+  file.info(destino)$size
+)
+
+if (
+  length(bytes_remotos) == 1 &&
+  is.finite(bytes_remotos) &&
+  bytes_remotos >= 0
+) {
+  stopifnot(bytes_remotos == bytes_locais)
+}
+
+data.frame(
+  arquivo = basename(destino),
+  bytes_remotos,
+  bytes_locais,
+  download_valido = ifelse(
+    length(bytes_remotos) == 1 &&
+      is.finite(bytes_remotos) &&
+      bytes_remotos >= 0,
+    bytes_remotos == bytes_locais,
+    NA
+  )
+)
+```
+
+
+Alguns servidores FTP não informam o tamanho remoto. Nesse caso, a ausência dessa informação deve ser registrada, e outras verificações precisam ser utilizadas.
+
+
+##### Verificação mínima do arquivo local
+
+
+``` sourceCode
+if (!file.exists(destino)) {
+  stop("O arquivo não foi criado.")
+}
+
+if (file.info(destino)$size == 0) {
+  stop("O arquivo está vazio.")
+}
+```
+
+
+
+##### Registro de hash
+
+Quando a fonte não publica um hash, ainda é útil calcular um valor local para identificar alterações entre execuções.
+
+
+``` sourceCode
+hash_local <- digest::digest(
+  file = destino,
+  algo = "sha256"
+)
+
+hash_local
+```
+
+
+O hash local permite verificar se o arquivo utilizado em duas execuções é exatamente o mesmo, mas não comprova sozinho que ele corresponde ao arquivo remoto completo.
+
+
+
+#### Contagem de registros no arquivo original
+
+Para arquivos de texto nos quais cada linha representa um registro, compare:
+
+- número de registros físicos no arquivo;
+- número de registros importados;
+- quantidade de linhas descartadas;
+- quantidade de linhas com erro;
+- presença de cabeçalho.
+
+Em Linux, a contagem pode ser feita com `wc -l`.
+
+
+``` sourceCode
+arquivo <- "producao.csv"
+
+saida_wc <- system2(
+  "wc",
+  c("-l", shQuote(arquivo)),
+  stdout = TRUE
+)
+
+linhas_flatfile <- as.integer(
+  strsplit(trimws(saida_wc), "\\s+")[[1]][1]
+)
+
+registros_flatfile <- linhas_flatfile - 1L
+
+dados <- data.table::fread(arquivo)
+
+registros_importados <- nrow(dados)
+
+stopifnot(
+  registros_flatfile == registros_importados
+)
+```
+
+
+A subtração de uma linha considera a existência de cabeçalho.
+
+> Essa comparação somente é válida quando cada registro ocupa exatamente uma linha. Arquivos CSV com quebras de linha dentro de campos textuais exigem validação pelo próprio parser.
+
+
+##### Resultado da validação
+
+
+``` sourceCode
+data.frame(
+  registros_flatfile,
+  registros_importados,
+  diferenca = registros_importados -
+    registros_flatfile,
+  valido = registros_flatfile ==
+    registros_importados
+)
+```
+
+
+Para arquivos muito grandes, a contagem deve ser realizada sem carregar todo o conteúdo simultaneamente na memória.
+
+
+
+#### Contagem de registros após a descompactação
+
+No caso de arquivos compactados, registre separadamente:
+
+- tamanho do arquivo compactado;
+- tamanho do arquivo descompactado;
+- quantidade de registros no arquivo descompactado;
+- quantidade de registros importados;
+- quantidade de registros mantidos após filtros.
+
+
+``` sourceCode
+controle <- data.frame(
+  arquivo = "PAAC2501.dbc",
+  bytes_dbc = file.info("PAAC2501.dbc")$size,
+  registros_importados = nrow(dados),
+  registros_apos_filtro = nrow(dados_filtrados)
+)
+
+controle
+```
+
+
+Essa separação evita confundir:
+
+- perda durante o download;
+- falha na descompactação;
+- erro de leitura;
+- descarte causado por filtros analíticos.
+
+
+#### Qualificação dos dados extraídos por API
+
+Dados obtidos por API também precisam ser validados. Uma resposta com código HTTP de sucesso não garante que todos os registros foram recuperados ou interpretados corretamente.
+
+A qualificação deve considerar:
+
+- endereço utilizado;
+- parâmetros enviados;
+- data e hora da extração;
+- código HTTP;
+- tipo de conteúdo;
+- versão da API;
+- paginação;
+- quantidade declarada pela API;
+- quantidade efetivamente recebida;
+- presença de registros duplicados;
+- estabilidade das chaves;
+- esquema dos campos;
+- unidades de medida;
+- filtros aplicados;
+- limites de requisição;
+- mensagens de erro;
+- alterações de versão.
+
+
+#### Validação da resposta HTTP
+
+
+``` sourceCode
+requisicao <- httr2::request(
+  "https://api.exemplo.gov.br/dados"
+) |>
+  httr2::req_url_query(
+    ano = 2025,
+    uf = "AC"
+  ) |>
+  httr2::req_retry(
+    max_tries = 3
+  )
+
+resposta <- httr2::req_perform(requisicao)
+
+httr2::resp_check_status(resposta)
+
+tipo_conteudo <- httr2::resp_header(
+  resposta,
+  "content-type"
+)
+
+if (!grepl("json", tipo_conteudo, ignore.case = TRUE)) {
+  stop(
+    "Tipo de conteúdo inesperado: ",
+    tipo_conteudo
+  )
+}
+```
+
+
+
+#### Preservação da resposta original
+
+Antes de transformar o conteúdo, conserve a resposta original da API.
+
+
+``` sourceCode
+arquivo_raw <- "resposta_api_20250817.json"
+
+writeBin(
+  httr2::resp_body_raw(resposta),
+  arquivo_raw
+)
+
+hash_raw <- digest::digest(
+  file = arquivo_raw,
+  algo = "sha256"
+)
+```
+
+
+Isso permite:
+
+- reproduzir a transformação;
+- investigar alterações do esquema;
+- conferir erros de interpretação;
+- comprovar qual resposta foi utilizada;
+- comparar extrações realizadas em momentos diferentes.
+
+
+#### Verificação da paginação
+
+Muitas APIs devolvem apenas uma parte dos registros por requisição. Verifique:
+
+- número máximo de registros por página;
+- página inicial;
+- última página;
+- indicador de próxima página;
+- total declarado;
+- quantidade acumulada;
+- duplicação entre páginas.
+
+Depois de reunir todas as páginas:
+
+
+``` sourceCode
+total_declarado <- resposta_json$total
+
+registros_recebidos <- nrow(dados_api)
+
+if (registros_recebidos != total_declarado) {
+  stop(
+    "Paginação incompleta: ",
+    registros_recebidos,
+    " registros recebidos de ",
+    total_declarado,
+    " declarados pela API."
+  )
+}
+```
+
+
+Quando a API não informar o total, registre essa limitação e verifique se a última página retornou menos registros que o limite solicitado.
+
+
+#### Verificação de duplicação entre páginas
+
+
+``` sourceCode
+duplicados <- dados_api |>
+  dplyr::count(id_registro) |>
+  dplyr::filter(n > 1)
+
+if (nrow(duplicados) > 0) {
+  warning(
+    "Foram encontrados registros duplicados entre as páginas."
+  )
+}
+```
+
+
+A chave utilizada nessa verificação deve representar a unidade de registro da API.
+
+
+#### Validação do esquema da API
+
+
+``` sourceCode
+campos_esperados <- c(
+  "id",
+  "competencia",
+  "estabelecimento",
+  "procedimento",
+  "quantidade",
+  "valor"
+)
+
+campos_ausentes <- setdiff(
+  campos_esperados,
+  names(dados_api)
+)
+
+if (length(campos_ausentes) > 0) {
+  stop(
+    "Campos ausentes na resposta: ",
+    paste(campos_ausentes, collapse = ", ")
+  )
+}
+```
+
+
+Uma API pode continuar respondendo normalmente mesmo depois de alterar:
+
+- nomes de campos;
+- tipos;
+- níveis de objetos;
+- formato das datas;
+- unidade monetária;
+- regras de paginação;
+- valores utilizados para representar dados ausentes.
+
+
+#### Registro de proveniência da API
+
+Acrescente metadados de proveniência ao resultado:
+
+
+``` sourceCode
+dados_api <- dados_api |>
+  dplyr::mutate(
+    fonte = "API oficial",
+    url_origem = httr2::req_url(requisicao),
+    data_extracao = Sys.time(),
+    status_http = httr2::resp_status(resposta),
+    hash_resposta = hash_raw
+  )
+```
+
+
+Também devem ser registrados separadamente:
+
+- parâmetros da consulta;
+- cabeçalhos relevantes;
+- versão da API;
+- quantidade de páginas;
+- total declarado;
+- total recebido;
+- tempo de execução;
+- tentativas repetidas;
+- mensagens de advertência.
+
+
+#### Comparação da API com dados oficiais consolidados
+
+Depois da extração, agregue os dados da API e compare os resultados com relatórios, painéis ou tabuladores oficiais que utilizem a mesma fonte.
+
+
+``` sourceCode
+controle_api <- dados_api |>
+  dplyr::group_by(competencia) |>
+  dplyr::summarise(
+    registros = dplyr::n(),
+    quantidade = sum(quantidade, na.rm = TRUE),
+    valor = sum(valor, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+Essa comparação ajuda a identificar:
+
+- páginas não recuperadas;
+- filtros ignorados;
+- mudanças na API;
+- registros repetidos;
+- diferenças de atualização;
+- conversões incorretas de tipos;
+- interpretação inadequada das unidades.
+
+
+#### Tabela de controle da importação
+
+Cada arquivo ou consulta pode gerar uma linha em uma tabela de controle.
+
+| Campo                   | Exemplo                 |
+|-------------------------|-------------------------|
+| `fonte`                 | repositório FTP do Ministério da Saúde             |
+| `sistema`               | SIA                     |
+| `subsistema`            | PA                      |
+| `arquivo`               | `PAAC2501.dbc`          |
+| `competencia`           | `202501`                |
+| `bytes_remotos`         | `12345678`              |
+| `bytes_locais`          | `12345678`              |
+| `registros_origem`      | `850321`                |
+| `registros_importados`  | `850321`                |
+| `registros_apos_filtro` | `12450`                 |
+| `hash_sha256`           | Hash do arquivo         |
+| `data_extracao`         | Data e hora             |
+| `situacao`              | Válido ou inconsistente |
+
+
+``` sourceCode
+controle_importacao <- data.frame(
+  fonte = "repositório FTP do Ministério da Saúde",
+  sistema = "SIA",
+  subsistema = "PA",
+  arquivo = basename(destino),
+  bytes_remotos = bytes_remotos,
+  bytes_locais = bytes_locais,
+  registros_importados = nrow(dados),
+  data_extracao = Sys.time(),
+  situacao = ifelse(
+    bytes_remotos == bytes_locais,
+    "Válido",
+    "Inconsistente"
+  )
+)
+```
+
+
+> Uma base qualificada deve permitir responder de onde os dados vieram, quando foram extraídos, quais filtros foram aplicados, quantos registros foram recebidos e quais verificações foram realizadas.
+
+
+#### Bancos de dados relacionais e SQL
+
+O R pode consultar bancos de dados relacionais sem importar previamente todo o conteúdo para a memória. Essa abordagem é indicada para bases grandes ou atualizadas continuamente.
+
+Pacotes comuns:
+
+- `DBI`: interface padronizada para bancos de dados;
+- `RPostgres`: conexão com PostgreSQL;
+- `RMariaDB`: conexão com MariaDB e MySQL;
+- `RSQLite`: conexão com SQLite;
+- `dbplyr`: tradução de comandos do `dplyr` para SQL.
+
+As credenciais não devem ser escritas diretamente no código. Utilize variáveis de ambiente, arquivos de configuração protegidos ou serviços de gerenciamento de segredos.
+
+
+#### Coleta em páginas web
+
+A coleta de informações diretamente de páginas HTML é conhecida como *web scraping*. Ela pode ser utilizada quando os dados não estão disponíveis por API ou para download em formato estruturado.
+
+O pacote `rvest` oferece funções para:
+
+- acessar páginas HTML;
+- selecionar elementos por meio de seletores CSS;
+- extrair textos, links e tabelas;
+- converter tabelas HTML em data frames.
+
+Antes da coleta, é necessário verificar:
+
+- os termos de uso do site;
+- as orientações do arquivo `robots.txt`;
+- a frequência permitida de requisições;
+- as restrições legais e éticas;
+- a presença de dados pessoais protegidos pela LGPD.
+
+Sempre que uma API oficial estiver disponível, ela deve ser preferida à extração direta do HTML.
+
+
+
+### Como escolher o formato de dados
+
+A escolha do formato depende do volume, da finalidade, do público e das ferramentas utilizadas.
+
+| Necessidade                        | Formato recomendado       |
+|------------------------------------|---------------------------|
+| Interoperabilidade simples         | CSV                       |
+| Planilha para uso manual           | XLSX                      |
+| Preservação de objetos do R        | RDS                       |
+| Grandes volumes analíticos         | Parquet                   |
+| Dados hierárquicos e APIs          | JSON                      |
+| Troca rápida entre R e Python      | Feather                   |
+| Consultas transacionais            | Banco de dados relacional |
+| Arquivos de pesquisas estatísticas | SPSS, Stata ou SAS        |
+
+Antes de escolher, considere:
+
+- tamanho dos dados;
+- necessidade de compressão;
+- preservação dos tipos;
+- compatibilidade com outros sistemas;
+- leitura parcial de colunas;
+- facilidade de inspeção manual;
+- necessidade de fórmulas ou formatação;
+- frequência de atualização.
+
+
+### Dados no R
+
+R é um ambiente de programação voltado à estatística, ciência de dados e visualização.
+
+Ele permite:
+
+- importar;
+- limpar;
+- transformar;
+- analisar;
+- modelar;
+- visualizar;
+- exportar dados.
+
+
+#### Representações comuns
+
+
+``` sourceCode
+# Vetor numérico
+valores <- c(10, 20, 30)
+
+# Vetor de texto
+nomes <- c("Ana", "Bruno", "Carla")
+
+# Valor lógico
+ativo <- TRUE
+
+# Data frame
+dados <- data.frame(
+  nome = nomes,
+  valor = valores
+)
+```
+
+
+
+#### Principais ações
+
+
+``` sourceCode
+# Importar um arquivo CSV
+dados <- read.csv("dados.csv")
+
+# Filtrar com R Base
+dados_filtrados <- subset(dados, valor > 10)
+
+# Resumir os dados
+summary(dados)
+```
+
+
+
+#### Dados estruturados, semiestruturados e não estruturados em R
+
+
+##### Dados estruturados
+
+São representados principalmente por `data.frame`, `tibble` ou objetos ligados a bancos de dados.
+
+
+``` sourceCode
+dados_estruturados <- data.frame(
+  id = c(1, 2),
+  nome = c("Ana", "Bruno"),
+  idade = c(25, 30)
+)
+```
+
+
+
+##### Dados semiestruturados
+
+Podem ser representados por listas aninhadas. Arquivos JSON podem ser processados com o pacote `jsonlite`.
+
+
+``` sourceCode
+library(jsonlite)
+
+json_string <- '{
+  "id": 1,
+  "nome": "Ana",
+  "cursos": ["R", "SQL"]
+}'
+
+dados_semiestruturados <- fromJSON(json_string)
+```
+
+
+
+##### Dados não estruturados
+
+Textos livres podem ser armazenados como vetores de caracteres. Imagens, áudios e vídeos exigem pacotes específicos.
+
+
+``` sourceCode
+texto_livre <- paste(
+  "A linguagem R é utilizada em",
+  "análise de dados e ciência de dados."
+)
+```
+
+
+
+
+#### Metadados no R
+
+Objetos do R armazenam metadados por meio de atributos.
+
+Atributos comuns:
+
+- `names`;
+- `class`;
+- `dim`;
+- `dimnames`;
+- `levels`.
+
+
+``` sourceCode
+df <- data.frame(
+  id = c(1, 2),
+  valor = c(10.5, 20.1)
+)
+
+names(df)
+class(df)
+attributes(df)
+```
+
+
+Metadados personalizados podem ser adicionados com `attr()`:
+
+
+``` sourceCode
+attr(df$valor, "descricao") <- "Valores monetários em reais"
+attr(df, "origem_dado") <- "Sistema interno de vendas"
+
+attr(df$valor, "descricao")
+attr(df, "origem_dado")
+```
+
+
+O formato RDS preserva o objeto e seus atributos:
+
+
+``` sourceCode
+saveRDS(df, file = "dados_com_metadados.rds")
+
+df_carregado <- readRDS("dados_com_metadados.rds")
+
+attr(df_carregado, "origem_dado")
+```
+
+
+
+#### Dados de produção versus dados analíticos em R
+
+O R pode transformar dados operacionais em estruturas adequadas para análise.
+
+
+##### Dados de produção
+
+- gerados por sistemas operacionais;
+- atualizados continuamente;
+- frequentemente normalizados;
+- podem conter duplicidades, inconsistências ou registros incompletos.
+
+
+##### Dados analíticos
+
+- consolidados para relatórios e estudos;
+- organizados por unidades de análise;
+- frequentemente estruturados no formato *tidy*;
+- preparados para agregação, visualização e modelagem.
+
+No formato *tidy*:
+
+- cada variável ocupa uma coluna;
+- cada observação ocupa uma linha;
+- cada valor ocupa uma célula.
+
+
+##### Tratamento com `dplyr`
+
+| Função        | Finalidade                 |
+|---------------|----------------------------|
+| `filter()`    | Filtrar linhas             |
+| `select()`    | Selecionar colunas         |
+| `mutate()`    | Criar ou alterar variáveis |
+| `group_by()`  | Definir grupos             |
+| `summarise()` | Calcular medidas-resumo    |
+| `arrange()`   | Ordenar registros          |
+
+
+``` sourceCode
+library(dplyr)
+
+resumo <- dados |>
+  filter(valor > 0) |>
+  group_by(categoria) |>
+  summarise(
+    quantidade = n(),
+    media = mean(valor, na.rm = TRUE)
+  )
+```
+
+
+
+##### Visualização e modelagem
+
+- **`ggplot2`:** criação de gráficos exploratórios e analíticos;
+- **funções estatísticas:** realização de testes e ajustes de modelos;
+- **modelos preditivos:** estimativa de resultados com base em dados históricos.
+
+
+
+
+
+## Fontes e formatos de dados com R
+
+
+### Coleta
+
+
+#### FTP
+
+O **FTP** (*File Transfer Protocol*) é um protocolo utilizado para transferir arquivos entre computadores. No R, é possível baixar, enviar e listar arquivos em servidores FTP.
+
+As principais opções são:
+
+- pacote `curl`, recomendado para a maioria das aplicações;
+- função nativa `download.file()`, adequada para downloads simples;
+- pacote `RCurl`, utilizado em códigos mais antigos.
+
+> **Segurança:** o FTP tradicional transmite informações sem criptografia. Sempre que possível, utilize protocolos seguros, como **SFTP** ou **FTPS**.
+
+
+##### Usando o pacote `curl`
+
+Instalação e carregamento:
+
+
+``` sourceCode
+install.packages("curl")
+library(curl)
+```
+
+
+###### Download de um arquivo
+
+
+``` sourceCode
+url <- "ftp://example.com/dados/arquivo.csv"
+
+curl_download(
+  url = url,
+  destfile = "arquivo_local.csv"
+)
+```
+
+
+Quando o servidor exige autenticação, as credenciais podem ser configuradas em um *handle*:
+
+
+``` sourceCode
+usuario <- Sys.getenv("FTP_USUARIO")
+senha <- Sys.getenv("FTP_SENHA")
+
+h <- new_handle()
+handle_setopt(
+  handle = h,
+  userpwd = paste(usuario, senha, sep = ":")
+)
+
+curl_download(
+  url = "ftp://example.com/dados/arquivo.csv",
+  destfile = "arquivo_local.csv",
+  handle = h
+)
+```
+
+
+
+###### Upload de um arquivo
+
+
+``` sourceCode
+curl_upload(
+  file = "arquivo_local.csv",
+  url = "ftp://example.com/dados/arquivo.csv",
+  handle = h
+)
+```
+
+
+
+
+##### Usando `download.file()`
+
+Para downloads simples:
+
+
+``` sourceCode
+download.file(
+  url = "ftp://example.com/dados/arquivo.txt",
+  destfile = "arquivo_baixado.txt",
+  method = "libcurl"
+)
+```
+
+
+
+##### Usando o pacote `RCurl`
+
+
+``` sourceCode
+install.packages("RCurl")
+library(RCurl)
+```
+
+
+###### Listar arquivos
+
+
+``` sourceCode
+arquivos <- getURL(
+  "ftp://example.com/dados/",
+  userpwd = paste(usuario, senha, sep = ":"),
+  dirlistonly = TRUE
+)
+
+cat(arquivos)
+```
+
+
+
+###### Enviar um arquivo
+
+
+``` sourceCode
+ftpUpload(
+  what = "arquivo_local.txt",
+  to = "ftp://example.com/dados/arquivo_remoto.txt",
+  userpwd = paste(usuario, senha, sep = ":")
+)
+```
+
+
+
+
+##### Boas práticas de segurança
+
+- não escreva senhas diretamente no código;
+- utilize variáveis de ambiente com `Sys.getenv()`;
+- considere o pacote `keyring` para gerenciar credenciais;
+- não inclua credenciais em repositórios Git;
+- prefira SFTP ou FTPS quando disponíveis;
+- verifique se a biblioteca `libcurl` instalada oferece suporte ao protocolo necessário.
+
+
+
+#### API
+
+Uma **API** (*Application Programming Interface*) permite a comunicação entre sistemas.
+
+No R, uma API pode ser utilizada para:
+
+1.  consumir dados de serviços externos;
+2.  disponibilizar funções, análises ou modelos como um serviço web.
+
+
+##### Consumindo uma API
+
+Os pacotes `httr2` e `jsonlite` podem ser utilizados para fazer requisições e processar respostas JSON.
+
+
+``` sourceCode
+install.packages(c("httr2", "jsonlite"))
+
+library(httr2)
+library(jsonlite)
+```
+
+
+###### Requisição GET
+
+
+``` sourceCode
+resposta <- request("https://api.example.com/dados") |>
+  req_perform()
+```
+
+
+
+###### Verificar o status
+
+
+``` sourceCode
+resp_status(resposta)
+# 200 indica sucesso
+```
+
+
+
+###### Converter a resposta JSON
+
+
+``` sourceCode
+conteudo <- resp_body_json(
+  resposta,
+  simplifyVector = TRUE
+)
+
+dados <- as.data.frame(conteudo)
+```
+
+
+
+###### Enviar parâmetros
+
+
+``` sourceCode
+resposta <- request("https://api.example.com/dados") |>
+  req_url_query(
+    ano = 2026,
+    categoria = "saude"
+  ) |>
+  req_perform()
+```
+
+
+
+###### Autenticação com token
+
+
+``` sourceCode
+token <- Sys.getenv("API_TOKEN")
+
+resposta <- request("https://api.example.com/dados") |>
+  req_auth_bearer_token(token) |>
+  req_perform()
+```
+
+
+
+
+##### Criando uma API com `plumber`
+
+O pacote `plumber` transforma funções do R em endpoints HTTP.
+
+
+``` sourceCode
+install.packages("plumber")
+library(plumber)
+```
+
+
+Exemplo de arquivo `api.R`:
+
+
+``` sourceCode
+#* Soma dois números
+#* @param a Primeiro valor
+#* @param b Segundo valor
+#* @get /somar
+function(a, b) {
+  list(
+    resultado = as.numeric(a) + as.numeric(b)
+  )
+}
+```
+
+
+Execução da API:
+
+
+``` sourceCode
+api <- plumb("api.R")
+api$run(port = 8000)
+```
+
+
+O endpoint poderá ser acessado por uma URL semelhante a:
+
+``` text
+http://localhost:8000/somar?a=10&b=20
+```
+
+------------------------------------------------------------------------
+
+
+
+
+### Arquivos de texto delimitados e posicionais
+
+Além do CSV, os dados podem ser distribuídos em outros formatos de texto.
+
+| Formato            | Descrição                                  | Função         |
+|--------------------|--------------------------------------------|----------------|
+| TSV                | Campos separados por tabulação             | `read_tsv()`   |
+| Texto delimitado   | Campos separados por um caractere definido | `read_delim()` |
+| Largura fixa       | Campos definidos por posições específicas  | `read_fwf()`   |
+| Arquivo por linhas | Um registro textual por linha              | `read_lines()` |
+
+Na importação, é necessário verificar:
+
+- delimitador;
+- codificação de caracteres;
+- separador decimal;
+- presença de cabeçalho;
+- representação de valores ausentes;
+- tipos atribuídos às colunas.
+
+
+### Codificação de caracteres e localização
+
+Arquivos de texto podem utilizar diferentes codificações de caracteres. Uma configuração incorreta pode produzir erros em acentos, símbolos e nomes próprios.
+
+Codificações comuns:
+
+- UTF-8;
+- Latin-1;
+- Windows-1252.
+
+A localização também pode alterar a interpretação dos dados:
+
+| Elemento            | Exemplo                      |
+|---------------------|------------------------------|
+| Separador decimal   | `10,5` ou `10.5`             |
+| Separador de milhar | `1.000` ou `1,000`           |
+| Data                | `17/08/2026` ou `2026-08-17` |
+| Idioma dos meses    | `agosto` ou `August`         |
+| Fuso horário        | `America/Sao_Paulo` ou `UTC` |
+
+Antes da análise, deve-se confirmar a codificação, a localização, o formato das datas e o separador decimal utilizados pela fonte.
+
+
+### CSV e XLSX
+
+CSV e XLSX são formatos comuns para armazenar dados tabulares.
+
+- **CSV:** arquivo de texto simples, leve e amplamente compatível.
+- **XLSX:** formato de planilha do Microsoft Excel, com suporte a abas, fórmulas e formatação.
+
+
+#### Comparação
+
+| Característica    | CSV                    | XLSX                                 |
+|-------------------|------------------------|--------------------------------------|
+| Extensão          | `.csv`                 | `.xlsx`                              |
+| Estrutura         | Texto delimitado       | Arquivo compactado do Excel          |
+| Número de tabelas | Uma por arquivo        | Várias planilhas                     |
+| Formatação visual | Não                    | Sim                                  |
+| Fórmulas          | Não                    | Sim                                  |
+| Tipos preservados | Limitadamente          | Parcialmente                         |
+| Desempenho        | Geralmente mais rápido | Geralmente mais lento                |
+| Compatibilidade   | Muito alta             | Dependente de software ou biblioteca |
+| Pacotes comuns    | `readr`                | `readxl` e `openxlsx`                |
+
+
+#### Trabalhando com CSV
+
+O R Base possui funções como `read.csv()` e `write.csv()`. O pacote `readr` oferece funções alternativas com comportamento consistente.
+
+
+``` sourceCode
+install.packages("readr")
+library(readr)
+```
+
+
+##### Ler um CSV
+
+
+``` sourceCode
+dados_csv <- read_csv("meu_arquivo.csv")
+```
+
+
+
+##### Salvar um CSV
+
+
+``` sourceCode
+write_csv(dados_csv, "novo_arquivo.csv")
+```
+
+
+Para arquivos delimitados por ponto e vírgula:
+
+
+``` sourceCode
+dados_csv <- read_csv2("meu_arquivo.csv")
+
+write_csv2(
+  dados_csv,
+  "novo_arquivo.csv"
+)
+```
+
+
+> `read_csv2()` considera, por padrão, ponto e vírgula como delimitador e vírgula como separador decimal.
+
+
+
+#### Trabalhando com XLSX
+
+O pacote `readxl` é usado para leitura. O pacote `openxlsx` permite leitura, escrita e formatação.
+
+
+``` sourceCode
+install.packages(c("readxl", "openxlsx"))
+
+library(readxl)
+library(openxlsx)
+```
+
+
+##### Ler uma planilha
+
+
+``` sourceCode
+dados_excel <- read_excel(
+  path = "dados.xlsx",
+  sheet = "Vendas"
+)
+```
+
+
+
+##### Salvar uma planilha
+
+
+``` sourceCode
+write.xlsx(
+  dados_excel,
+  file = "relatorio_final.xlsx"
+)
+```
+
+
+
+##### Salvar várias abas
+
+
+``` sourceCode
+abas <- list(
+  Dados = dados_excel,
+  Resumo = summary(dados_excel)
+)
+
+write.xlsx(
+  abas,
+  file = "relatorio_completo.xlsx"
+)
+```
+
+
+
+
+#### Qual formato escolher?
+
+Use **CSV** quando:
+
+- os dados serão processados automaticamente;
+- houver necessidade de interoperabilidade;
+- o arquivo contiver apenas uma tabela;
+- formatação visual e fórmulas não forem necessárias.
+
+Use **XLSX** quando:
+
+- o arquivo for destinado à leitura por pessoas;
+- forem necessárias várias abas;
+- houver necessidade de fórmulas ou formatação;
+- o fluxo de trabalho depender do Microsoft Excel.
+
+------------------------------------------------------------------------
+
+
+
+### Formatos estatísticos
+
+O pacote `haven` permite importar e exportar arquivos produzidos por programas estatísticos.
+
+| Formato | Extensão    | Função de leitura |
+|---------|-------------|-------------------|
+| SPSS    | `.sav`      | `read_sav()`      |
+| Stata   | `.dta`      | `read_dta()`      |
+| SAS     | `.sas7bdat` | `read_sas()`      |
+
+Esses arquivos podem conter metadados que não existem em um CSV, como:
+
+- rótulos das variáveis;
+- rótulos dos valores;
+- códigos especiais para dados ausentes;
+- formatos de apresentação;
+- informações sobre categorias.
+
+Variáveis importadas podem utilizar a classe `labelled`. Antes da análise, é necessário verificar se elas devem ser mantidas como rotuladas ou convertidas para fatores.
+
+
+### RDS
+
+RDS é um formato binário nativo do R usado para serializar e armazenar um único objeto.
+
+Ele pode preservar:
+
+- classes;
+- atributos;
+- fatores;
+- datas;
+- listas;
+- modelos estatísticos;
+- estruturas complexas.
+
+
+#### Salvar um objeto
+
+
+``` sourceCode
+saveRDS(
+  object = dados,
+  file = "dados.rds"
+)
+```
+
+
+
+#### Carregar um objeto
+
+
+``` sourceCode
+dados_carregados <- readRDS("dados.rds")
+```
+
+
+O objeto carregado pode receber qualquer nome:
+
+
+``` sourceCode
+copia_dos_dados <- readRDS("dados.rds")
+```
+
+
+
+#### Vantagens
+
+- preserva classes e atributos;
+- suporta compactação;
+- armazena objetos complexos;
+- evita conversões de tipos comuns em arquivos de texto;
+- exige atribuição explícita na leitura.
+
+
+#### RDS versus RData
+
+| Característica             | RDS         | RData        |
+|----------------------------|-------------|--------------|
+| Função para salvar         | `saveRDS()` | `save()`     |
+| Função para carregar       | `readRDS()` | `load()`     |
+| Quantidade de objetos      | Um          | Um ou vários |
+| Nome armazenado no arquivo | Não         | Sim          |
+| Atribuição na leitura      | Explícita   | Automática   |
+
+> Arquivos RDS são específicos do ecossistema R. Para interoperabilidade com outros sistemas, considere CSV, JSON ou Parquet.
+
+------------------------------------------------------------------------
+
+
+
+### Tidyverse e dplyr para tratamento de dados
+
+O **Tidyverse** é uma coleção de pacotes para ciência de dados que compartilham princípios de organização, sintaxe e interoperabilidade.
+
+Sua filosofia utiliza o conceito de **dados arrumados** (*tidy data*):
+
+- cada variável ocupa uma coluna;
+- cada observação ocupa uma linha;
+- cada valor ocupa uma célula.
+
+
+#### Principais pacotes
+
+| Pacote    | Finalidade                      |
+|-----------|---------------------------------|
+| `dplyr`   | Manipulação de linhas e colunas |
+| `tidyr`   | Organização e remodelagem       |
+| `ggplot2` | Visualização                    |
+| `readr`   | Importação de arquivos de texto |
+| `purrr`   | Programação funcional           |
+| `stringr` | Manipulação de textos           |
+| `forcats` | Manipulação de fatores          |
+| `tibble`  | Estruturas tabulares modernas   |
+
+
+#### dplyr
+
+O `dplyr` fornece funções conhecidas como **verbos**, que tornam as transformações tabulares mais legíveis.
+
+| Função        | Finalidade                    |
+|---------------|-------------------------------|
+| `filter()`    | Selecionar linhas             |
+| `select()`    | Selecionar ou excluir colunas |
+| `mutate()`    | Criar ou modificar colunas    |
+| `arrange()`   | Ordenar linhas                |
+| `summarise()` | Calcular medidas-resumo       |
+| `group_by()`  | Agrupar observações           |
+
+
+``` sourceCode
+install.packages("dplyr")
+library(dplyr)
+```
+
+
+
+#### O uso do operador pipe (`|>` ou `%>%`)
+
+O pipe encaminha o resultado de uma operação para a função seguinte.
+
+
+``` sourceCode
+dados_filtrados <- base_dados |>
+  filter(ano == 2026) |>
+  group_by(categoria) |>
+  summarise(
+    media_valor = mean(valor, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(desc(media_valor))
+```
+
+
+O pipe nativo `|>` está disponível nas versões atuais do R. O operador `%>%` é fornecido pelo pacote `magrittr` e carregado com o Tidyverse.
+
+
+#### `filter()`
+
+Seleciona linhas com base em condições lógicas.
+
+
+``` sourceCode
+dados |>
+  filter(
+    ano == 2026,
+    valor > 100
+  )
+```
+
+
+
+#### `select()`
+
+Seleciona ou exclui colunas.
+
+
+``` sourceCode
+dados |>
+  select(id, categoria, valor)
+```
+
+
+Exclusão de uma coluna:
+
+
+``` sourceCode
+dados |>
+  select(-observacao)
+```
+
+
+
+#### `mutate()`
+
+Cria ou modifica colunas.
+
+
+``` sourceCode
+dados |>
+  mutate(
+    valor_com_taxa = valor * 1.10,
+    valor_alto = valor > 100
+  )
+```
+
+
+
+#### `arrange()`
+
+Ordena as linhas.
+
+
+``` sourceCode
+dados |>
+  arrange(valor)
+```
+
+
+Ordem decrescente:
+
+
+``` sourceCode
+dados |>
+  arrange(desc(valor))
+```
+
+
+
+#### `summarise()`
+
+Reduz várias observações a medidas-resumo.
+
+
+``` sourceCode
+dados |>
+  summarise(
+    quantidade = n(),
+    media = mean(valor, na.rm = TRUE),
+    mediana = median(valor, na.rm = TRUE)
+  )
+```
+
+
+
+#### `group_by()`
+
+Define grupos para operações subsequentes.
+
+
+``` sourceCode
+dados |>
+  group_by(categoria) |>
+  summarise(
+    quantidade = n(),
+    total = sum(valor, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Feather e Arrow IPC
+
+Feather é um formato binário baseado no Apache Arrow e voltado à leitura e escrita rápida de dados tabulares.
+
+É adequado para:
+
+- troca de dados entre R e Python;
+- armazenamento temporário;
+- preservação dos tipos das colunas;
+- leitura e escrita com baixa sobrecarga.
+
+Principais funções do pacote `arrow`:
+
+- `write_feather()`: salva um objeto em formato Feather;
+- `read_feather()`: lê um arquivo Feather.
+
+O Feather é indicado para intercâmbio rápido. Para armazenamento analítico, particionamento e consulta de grandes volumes, o Parquet costuma ser mais apropriado.
+
+
+### Parquet
+
+**Apache Parquet** é um formato binário de armazenamento colunar. No R, ele pode ser manipulado por meio do pacote `arrow`.
+
+
+#### Características
+
+- **Armazenamento colunar:** organiza valores por coluna.
+- **Compactação eficiente:** agrupa dados semelhantes.
+- **Leitura seletiva:** permite ler somente as colunas necessárias.
+- **Preservação de tipos:** mantém tipos de dados de forma mais robusta que CSV.
+- **Interoperabilidade:** é suportado por R, Python, Spark, DuckDB e outras ferramentas.
+
+
+#### Instalação
+
+
+``` sourceCode
+install.packages("arrow")
+library(arrow)
+```
+
+
+
+#### Escrever um arquivo Parquet
+
+
+``` sourceCode
+dados <- data.frame(
+  id = 1:3,
+  nome = c("Ana", "Bruno", "Carla"),
+  valor = c(10.5, 20.0, 30.5)
+)
+
+write_parquet(
+  dados,
+  sink = "dados_exemplo.parquet"
+)
+```
+
+
+
+#### Ler um arquivo Parquet
+
+
+``` sourceCode
+dados_lidos <- read_parquet(
+  file = "dados_exemplo.parquet"
+)
+```
+
+
+
+#### Ler colunas específicas
+
+
+``` sourceCode
+dados_lidos <- read_parquet(
+  file = "dados_exemplo.parquet",
+  col_select = c(id, valor)
+)
+```
+
+
+
+#### Consultar um conjunto de arquivos
+
+
+``` sourceCode
+dataset <- open_dataset(
+  "diretorio_dos_arquivos",
+  format = "parquet"
+)
+
+resultado <- dataset |>
+  select(id, categoria, valor) |>
+  filter(valor > 100) |>
+  collect()
+```
+
+
+> `collect()` materializa o resultado no R. Antes disso, operações compatíveis podem ser executadas sem carregar todo o conjunto na memória.
+
+
+#### Parquet versus CSV
+
+| Característica     | Parquet           | CSV                  |
+|--------------------|-------------------|----------------------|
+| Estrutura          | Binária e colunar | Texto e linhas       |
+| Compactação        | Alta              | Não incorporada      |
+| Tipos de dados     | Preservados       | Inferidos na leitura |
+| Leitura seletiva   | Sim               | Limitada             |
+| Leitura humana     | Não               | Sim                  |
+| Grandes volumes    | Mais adequado     | Menos eficiente      |
+| Interoperabilidade | Alta              | Muito alta           |
+
+
+#### Conjuntos Parquet particionados
+
+Grandes conjuntos de dados podem ser distribuídos em vários arquivos Parquet e organizados em diretórios de partição.
+
+Exemplos de variáveis de particionamento:
+
+- ano;
+- mês;
+- unidade federativa;
+- estabelecimento;
+- categoria.
+
+A função `write_dataset()` grava um conjunto particionado, enquanto `open_dataset()` permite consultá-lo sem carregar todos os arquivos na memória.
+
+O particionamento permite que o mecanismo leia somente os arquivos relacionados ao filtro solicitado. Essa otimização é conhecida como *partition pruning*.
+
+A variável escolhida para o particionamento deve:
+
+- ser usada frequentemente nos filtros;
+- possuir uma quantidade controlada de categorias;
+- evitar a criação de milhares de arquivos muito pequenos.
+
+------------------------------------------------------------------------
+
+
+
+### JSON
+
+**JSON** (*JavaScript Object Notation*) é um formato textual usado para representar e trocar dados entre sistemas.
+
+É comum em:
+
+- APIs;
+- arquivos de configuração;
+- aplicações web;
+- registros semiestruturados.
+
+No R, o pacote `jsonlite` converte dados entre JSON e estruturas como listas e data frames.
+
+
+#### Instalação
+
+
+``` sourceCode
+install.packages("jsonlite")
+library(jsonlite)
+```
+
+
+
+#### Converter JSON em objeto do R
+
+
+``` sourceCode
+json_string <- '{
+  "nome": "Ana",
+  "idade": 30,
+  "ativo": true
+}'
+
+objeto_r <- fromJSON(json_string)
+```
+
+
+Acesso aos elementos:
+
+
+``` sourceCode
+objeto_r$nome
+# [1] "Ana"
+
+objeto_r$idade
+# [1] 30
+```
+
+
+
+#### Ler JSON de um arquivo
+
+
+``` sourceCode
+dados <- fromJSON("dados.json")
+```
+
+
+
+#### Ler JSON de uma URL
+
+
+``` sourceCode
+dados <- fromJSON(
+  "https://api.example.com/dados"
+)
+```
+
+
+> Para APIs que exigem autenticação, tratamento de erros ou parâmetros, faça a requisição com `httr2` e depois processe a resposta.
+
+
+#### Converter objeto do R em JSON
+
+
+``` sourceCode
+novo_df <- data.frame(
+  fruta = c("Maçã", "Banana"),
+  preco = c(2.50, 1.75)
+)
+
+json_output <- toJSON(
+  novo_df,
+  pretty = TRUE,
+  auto_unbox = TRUE
+)
+
+cat(json_output)
+```
+
+
+
+#### Salvar JSON em um arquivo
+
+
+``` sourceCode
+write_json(
+  novo_df,
+  path = "dados.json",
+  pretty = TRUE,
+  auto_unbox = TRUE
+)
+```
+
+
+
+#### JSON versus formatos tabulares
+
+| Característica  | JSON        | CSV                 | Parquet                 |
+|-----------------|-------------|---------------------|-------------------------|
+| Estrutura       | Hierárquica | Tabular             | Tabular e colunar       |
+| Formato         | Texto       | Texto               | Binário                 |
+| Dados aninhados | Sim         | Não                 | Limitado pelo esquema   |
+| Leitura humana  | Sim         | Sim                 | Não                     |
+| Uso comum       | APIs        | Intercâmbio simples | Processamento analítico |
+
+
+
+
+## Tratamento de dados do SUS com R
+
+
+### `read.dbc`
+
+O `read.dbc` é um pacote da linguagem R utilizado para importar arquivos no formato `.dbc`, empregados na disseminação de dados públicos de saúde pelo Ministério da Saúde e pela ANS.
+
+O formato `.dbc` corresponde a uma versão compactada de arquivos `.dbf`. O pacote elimina a necessidade de realizar manualmente a descompactação antes da leitura.
+
+
+#### Como a função funciona
+
+A função `read.dbc()` executa automaticamente as seguintes etapas:
+
+- recebe o caminho de um arquivo `.dbc`;
+- descompacta temporariamente o conteúdo para o formato `.dbf`;
+- importa os registros para a memória;
+- devolve os dados como um `data.frame`.
+
+O pacote também é utilizado por ferramentas voltadas ao tratamento de dados públicos de saúde, como o `microdatasus`.
+
+
+#### Instalação simples pelo CRAN
+
+Em versões do R para as quais o pacote esteja disponível no CRAN:
+
+
+``` sourceCode
+install.packages("read.dbc")
+```
+
+
+Depois da instalação, o pacote pode ser carregado com:
+
+
+``` sourceCode
+library(read.dbc)
+```
+
+
+
+#### Instalação com alternativas automáticas
+
+O `read.dbc` pode não estar disponível no CRAN para algumas versões do R. O código abaixo testa, sequencialmente:
+
+- instalação pelo CRAN;
+- instalação do GitHub com `remotes`;
+- instalação do GitHub com `pak`.
+
+
+``` sourceCode
+repositorio <- "https://cloud.r-project.org"
+
+mensagem_erro <- function(erro) {
+  if (is.null(erro)) {
+    "sem erro registrado"
+  } else {
+    conditionMessage(erro)
+  }
+}
+
+erro_cran <- NULL
+erro_remotes <- NULL
+erro_pak <- NULL
+
+# Opção 1: CRAN
+if (!requireNamespace("read.dbc", quietly = TRUE)) {
+  message("Tentando instalar read.dbc pelo CRAN...")
+
+  erro_cran <- tryCatch(
+    {
+      install.packages(
+        "read.dbc",
+        repos = repositorio
+      )
+      NULL
+    },
+    error = identity
+  )
+}
+
+# Opção 2: GitHub com remotes
+if (!requireNamespace("read.dbc", quietly = TRUE)) {
+  message("Tentando instalar read.dbc com remotes...")
+
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+    install.packages(
+      "remotes",
+      repos = repositorio
+    )
+  }
+
+  erro_remotes <- tryCatch(
+    {
+      remotes::install_github(
+        "danicat/read.dbc",
+        upgrade = "never"
+      )
+      NULL
+    },
+    error = identity
+  )
+}
+
+# Opção 3: GitHub com pak
+if (!requireNamespace("read.dbc", quietly = TRUE)) {
+  message("Tentando instalar read.dbc com pak...")
+
+  if (!requireNamespace("pak", quietly = TRUE)) {
+    install.packages(
+      "pak",
+      repos = repositorio
+    )
+  }
+
+  erro_pak <- tryCatch(
+    {
+      pak::pak("danicat/read.dbc")
+      NULL
+    },
+    error = identity
+  )
+}
+
+# Verificação final
+if (!requireNamespace("read.dbc", quietly = TRUE)) {
+  stop(
+    "Não foi possível instalar read.dbc.",
+    "\nCRAN: ", mensagem_erro(erro_cran),
+    "\nremotes: ", mensagem_erro(erro_remotes),
+    "\npak: ", mensagem_erro(erro_pak)
+  )
+}
+
+message("read.dbc está instalado e disponível.")
+```
+
+
+
+#### Leitura de um arquivo DBC
+
+Depois da instalação, um arquivo pode ser lido diretamente:
+
+
+``` sourceCode
+dados <- read.dbc::read.dbc("arquivo.dbc")
+```
+
+
+O resultado será armazenado como um `data.frame`.
+
+
+``` sourceCode
+class(dados)
+dim(dados)
+names(dados)
+head(dados)
+```
+
+
+
+#### Exemplo com caminho local
+
+
+``` sourceCode
+arquivo_dbc <- "dados/PAAC2501.dbc"
+
+dados <- read.dbc::read.dbc(arquivo_dbc)
+
+dim(dados)
+head(dados)
+```
+
+
+
+#### Verificação antes da leitura
+
+Para evitar erros causados por caminhos incorretos:
+
+
+``` sourceCode
+arquivo_dbc <- "dados/PAAC2501.dbc"
+
+if (!file.exists(arquivo_dbc)) {
+  stop("Arquivo não encontrado: ", arquivo_dbc)
+}
+
+dados <- read.dbc::read.dbc(arquivo_dbc)
+```
+
+
+
+
+
+## Referências
+
+ALCOFORADO, Luciane Ferreira. *Utilizando a linguagem R: conceitos, manipulação, visualização, modelagem e elaboração de relatórios*. Rio de Janeiro: Alta Books, 2021. 367 p. Disponível em: <https://altabooks.com.br/produto/utilizando-a-linguagem-r>. Acesso em: 17 ago. 2026.
+
+FIGUEIRA, Leonardo. *Criando funções no R*. Estatística é com R! Disponível em: <http://www.estatisticacomr.uff.br/?p=224>. Acesso em: 17 ago. 2026.
+
+GROLEMUND, Garrett. *Hands-on programming with R*. 1. ed. Sebastopol: O’Reilly Media, 2014. Disponível em: <https://rstudio-education.github.io/hopr/>. Acesso em: 17 ago. 2026.
+
+IBPAD. *Curso de R*. Disponível em: <https://cdr.ibpad.com.br/>. Acesso em: 17 ago. 2026.
+
+R-HTA. *R for Health Technology Assessment*. Disponível em: <https://r-hta.org/>. Acesso em: 17 ago. 2026.
+
+WICKHAM, Hadley. *Advanced R*. 1. ed. Boca Raton: CRC Press, 2014. Disponível em: <http://adv-r.had.co.nz/>. Acesso em: 17 ago. 2026.
+
+WICKHAM, Hadley; GROLEMUND, Garrett. *R for data science: import, tidy, transform, visualize, and model data*. Sebastopol: O’Reilly Media, 2017. Disponível em: <https://r4ds.had.co.nz/>. Acesso em: 17 ago. 2026.
+
+
+
+

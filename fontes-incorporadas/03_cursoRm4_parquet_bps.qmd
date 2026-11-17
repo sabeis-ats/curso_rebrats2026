@@ -1,0 +1,743 @@
+## Microdados do SUS com R para Avaliação Econômica
+
+#### Ecossistema de dados do SUS com R - parte 3: fread vs Parquet, precos do BPS
+
+
+Ocultar menu
+
+
+**Objetivo do curso:** Capacitar participantes a extrair, validar, tratar e analisar microdados do SUS com R, integrando fontes de custos/preços e técnicas aplicadas à avaliação econômica.
+
+
+## Duas rotas para os mesmos dados
+
+
+### Ementa
+
+- O que muda, na prática, entre `fread()` sobre `.csv.gz` e Arrow/DuckDB sobre Parquet?
+- Quanto ocupa em disco a mesma base nos dois formatos?
+- Qual rota é mais rápida — e em que ponto a resposta se inverte?
+- O que muda na **modelagem**, e por que agregar antes pode dar o mesmo coeficiente?
+- Como cruzar SIGTAP com o BPS para imputar preços nas dispensações?
+
+> **Objetivo da aula:** percorrer o mesmo problema por duas rotas tecnológicas, medir a diferença e terminar com uma tabela de custo por medicamento.
+
+
+### Ponto de partida
+
+Ao final da aula anterior, a ETL deixou dois produtos no disco. Cada um abre uma rota:
+
+
+
+**Rota A — CSV comprimido**
+
+
+``` sourceCode
+library(data.table)
+df <- fread("saida/artrite_reumatoide_sp.csv.gz")
+dim(df)
+```
+
+
+Um arquivo. Uma função. O objeto inteiro na RAM.
+
+
+**Rota B — Parquet particionado**
+
+
+``` sourceCode
+library(arrow); library(dplyr)
+base <- open_dataset("saida/parquet/")
+names(base)
+```
+
+
+Um diretório. Uma referência. Nada na RAM ainda.
+
+
+
+As duas linhas parecem equivalentes. Não são: a primeira **executou**, a segunda apenas **prometeu**. Toda a diferença desta aula está nisso.
+
+------------------------------------------------------------------------
+
+
+### Parte 1 — As duas rotas, passo a passo
+
+Mesmo objetivo: gasto total e quantidade aprovada por medicamento. Acompanhe as colunas lado a lado.
+
+| \#  | Rota A — `fread` + `data.table`      | Rota B — Parquet + DuckDB                |
+|-----|--------------------------------------|------------------------------------------|
+| 1   | descomprime o `.gz` inteiro          | lê só o rodapé dos arquivos              |
+| 2   | interpreta **todas** as 60 colunas   | ignora as colunas não citadas            |
+| 3   | materializa o objeto completo na RAM | mantém o plano de consulta               |
+| 4   | filtra e agrupa em memória           | empurra filtro e projeção para o arquivo |
+| 5   | resultado já está na RAM             | `collect()` traz só o agregado           |
+
+
+#### Rota A, em código
+
+
+``` sourceCode
+library(data.table)
+
+setwd("/media/ferre/B274AF8E74AF543F/Downloads/cursoR/saida/")
+
+# Sem 'select', as 60 colunas são interpretadas e ficam na RAM
+df <- fread("artrite_reumatoide_sp.csv.gz", keepLeadingZeros = TRUE)
+dim(df)
+
+resumo_a <- df[, .(qt = sum(PA_QTDAPR), valor = sum(PA_VALAPR)),
+               by = PA_PROC_ID][order(-qt)]
+head(resumo_a)
+```
+
+
+A versão consciente da mesma rota — que é a que deve ser usada — declara as colunas:
+
+
+``` sourceCode
+df <- fread("artrite_reumatoide_sp.csv.gz",
+            select = c("PA_CMP", "PA_PROC_ID", "PA_QTDAPR", "PA_VALAPR"),
+            keepLeadingZeros = TRUE)
+```
+
+
+> **`keepLeadingZeros = TRUE` não é detalhe.** Sem ele, `fread()` infere que `PA_PROC_ID` é um número e `"0604320140"` vira `604320140`. A junção com a SIGTAP então falha em silêncio — sem erro, sem aviso, só linhas a menos. Voltaremos a isso na Parte 5.
+
+
+#### Rota B, em código
+
+
+``` sourceCode
+library(arrow)
+library(dplyr)
+
+base <- open_dataset("/media/ferre/B274AF8E74AF543F/Downloads/cursoR/saida/parquet/")
+
+names(base)          # inclui as colunas virtuais 'ano' e 'mes' da partição
+nrow(base)           # vem dos metadados, sem varrer os dados
+
+resumo_b <- base |>
+  group_by(PA_PROC_ID) |>
+  summarise(qt = sum(PA_QTDAPR), valor = sum(PA_VALAPR)) |>
+  arrange(desc(qt)) |>
+  collect()           # só aqui a RAM é tocada
+```
+
+
+Note que `names(base)` devolve `ano` e `mes` mesmo sem que existam dentro dos arquivos: são os diretórios `ano=2023/mes=01/` lidos como colunas. Filtrar por elas não abre arquivo nenhum das outras partições.
+
+
+#### A mesma coisa em SQL
+
+
+``` sourceCode
+library(DBI); library(duckdb)
+
+con <- dbConnect(duckdb(), dbdir = ":memory:")
+dbExecute(con, "SET memory_limit = '4GB'")
+
+dbGetQuery(con, "
+  SELECT PA_PROC_ID,
+         sum(TRY_CAST(PA_QTDAPR AS DOUBLE)) AS qt,
+         sum(TRY_CAST(PA_VALAPR AS DOUBLE)) AS valor
+  FROM read_parquet(
+    '/media/ferre/B274AF8E74AF543F/Downloads/cursoR/saida/parquet/**/*.parquet',
+    hive_partitioning = true)
+  WHERE ano = 2024
+  GROUP BY 1 ORDER BY qt DESC")
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Parte 2 — Tamanho em disco
+
+Os números abaixo são do seu próprio diretório, medidos com `du -h` e `ls -lH`. Todos representam **exatamente os mesmos registros**.
+
+| Forma de armazenar                              |   Tamanho | Razão vs. Parquet | Consulta por coluna? |
+|-------------------------------------------------|----------:|------------------:|----------------------|
+| CSV plano (`competencias/`, 24 arquivos)        |    781 MB |               29× | não                  |
+| CSV comprimido (`artrite_reumatoide_sp.csv.gz`) |     42 MB |              1,6× | não                  |
+| **Parquet zstd particionado (`parquet/`)**      | **27 MB** |            **1×** | **sim**              |
+
+O `.gz` fica perto do Parquet em tamanho — e é aí que mora o engano. As duas linhas seguintes explicam por que o empate no disco não é empate no uso:
+
+- **gzip é um fluxo**: para ler o byte final é preciso descomprimir tudo desde o primeiro. Não há como ler só a coluna `PA_QTDAPR`.
+- **Parquet comprime por bloco de coluna**: cada pedaço é descomprimível de forma independente, e o rodapé diz onde cada um começa.
+
+Em outras palavras: o `.gz` economiza disco; o Parquet economiza **leitura**.
+
+
+#### Verificando no seu diretório
+
+
+``` sourceCode
+tamanho_mb <- function(caminho) {
+  if (dir.exists(caminho)) {
+    arqs <- list.files(caminho, recursive = TRUE, full.names = TRUE)
+    return(sum(file.size(arqs)) / 1e6)
+  }
+  file.size(caminho) / 1e6
+}
+
+base_dir <- "/media/ferre/B274AF8E74AF543F/Downloads/cursoR/saida"
+
+tam <- data.frame(
+  forma = c("CSV por competência", "CSV.GZ único", "Parquet particionado"),
+  mb = c(tamanho_mb(file.path(base_dir, "competencias")),
+         tamanho_mb(file.path(base_dir, "artrite_reumatoide_sp.csv.gz")),
+         tamanho_mb(file.path(base_dir, "parquet")))
+)
+tam$razao <- round(tam$mb / min(tam$mb), 1)
+tam
+```
+
+
+``` sourceCode
+op <- par(mar = c(4, 12, 2, 2))
+barplot(rev(tam$mb), names.arg = rev(tam$forma), horiz = TRUE, las = 1,
+        col = c("#337ab7", "#6aa9d6", "#c8dcea"),
+        xlab = "MB em disco", main = "Mesmos dados, três formas de guardar")
+par(op)
+```
+
+
+
+#### Por que o Parquet encolhe tanto
+
+A base do SIA é quase toda composta de códigos repetidos: 24 competências distintas em milhões de linhas, algumas dezenas de procedimentos, poucos CIDs. A codificação por dicionário guarda o vocabulário uma vez e substitui cada ocorrência por um inteiro pequeno; o `zstd` comprime o resultado. Colunas com baixa cardinalidade chegam a ocupar menos de 1% do equivalente em texto.
+
+
+``` sourceCode
+library(arrow)
+
+arq <- list.files("saida/parquet", pattern = "\\.parquet$",
+                  recursive = TRUE, full.names = TRUE)[1]
+
+pq <- ParquetFileReader$create(arq)
+pq$GetSchema()                      # tipos preservados, sem re-inferência
+meta <- pq$ReadTable()$schema$metadata
+pq$num_rows
+```
+
+
+------------------------------------------------------------------------
+
+
+
+### Parte 3 — Processamento: quanto custa cada rota
+
+
+#### O instrumento de medida
+
+Comparar “na sensação” não serve. Este auxiliar mede tempo de parede e pico de memória da sessão:
+
+
+``` sourceCode
+medir <- function(rotulo, expr) {
+  gc(reset = TRUE, full = TRUE)                 # zera o marcador de pico
+  t <- system.time(val <- force(expr))
+  pico <- sum(gc()[, 6])                        # colunas "max used (Mb)"
+  cat(sprintf("%-34s %6.2f s   RAM pico %7.1f MB\n",
+              rotulo, t[["elapsed"]], pico))
+  invisible(val)
+}
+```
+
+
+O `gc(reset = TRUE)` é indispensável: sem ele, o pico reportado é o da sessão inteira, contaminado por tudo que veio antes.
+
+
+#### O ensaio
+
+
+``` sourceCode
+library(data.table); library(arrow); library(dplyr)
+
+# --- Rota A -----------------------------------------------------------------
+medir("A1 fread: todas as colunas",
+      fread("artrite_reumatoide_sp.csv.gz", keepLeadingZeros = TRUE))
+
+d <- medir("A2 fread: 4 colunas",
+      fread("artrite_reumatoide_sp.csv.gz", keepLeadingZeros = TRUE,
+            select = c("PA_CMP","PA_PROC_ID","PA_QTDAPR","PA_VALAPR")))
+
+medir("A3 agregação em memória",
+      d[, .(q = sum(PA_QTDAPR), v = sum(PA_VALAPR)), by = PA_PROC_ID])
+
+# --- Rota B -----------------------------------------------------------------
+base <- open_dataset("parquet/")
+
+medir("B1 abrir dataset", open_dataset("parquet/"))
+
+medir("B2 agregação preguiçosa",
+      base |>
+        group_by(PA_PROC_ID) |>
+        summarise(q = sum(PA_QTDAPR), v = sum(PA_VALAPR)) |>
+        collect())
+```
+
+
+
+#### O que esperar
+
+Os números abaixo vêm de uma simulação com 200 mil linhas e 61 colunas, feita para esta aula. **Rode o ensaio na sua base real** — a ordem de grandeza muda, e é justamente essa mudança que interessa.
+
+| Etapa                   |  Tempo | RAM pico | Objeto resultante |
+|-------------------------|-------:|---------:|------------------:|
+| A1 `fread` 61 colunas   | 0,78 s |   144 MB |            108 MB |
+| A2 `fread` 4 colunas    | 0,21 s |    93 MB |            4,8 MB |
+| A3 agregação            | 0,01 s |    45 MB |         16 linhas |
+| B1 abrir dataset        | 0,01 s |    55 MB |        referência |
+| B2 agregação preguiçosa | 0,24 s |   108 MB |         16 linhas |
+
+
+#### Lendo a tabela com honestidade
+
+A conclusão não é “Parquet ganha sempre”. Em 200 mil linhas, `fread` com `select` é competitivo e mais simples. O que a tabela mostra de fato:
+
+1.  **O `select` importa mais que o formato.** A1 → A2 corta o tempo por quatro e a RAM por vinte. Quem usa `fread()` sem `select` paga o preço mais caro de todos.
+2.  **O `.gz` obriga a descomprimir tudo.** A economia de A2 vem de não *construir* as colunas — mas os bytes foram lidos e descomprimidos assim mesmo. No Parquet, eles nem saem do disco.
+3.  **A vantagem do Parquet cresce com a razão colunas-lidas / colunas-totais.** Com 4 de 60 colunas, o Parquet lê ~7% dos bytes. Com 60 de 60, empata.
+4.  **O ponto de virada é a RAM, não o relógio.** Enquanto o objeto couber com folga, a rota A é confortável. Quando não couber, ela não fica lenta: ela falha.
+
+
+#### Regra de bolso
+
+| Situação                                    | Rota                   |
+|---------------------------------------------|------------------------|
+| arquivo \< ~20% da RAM livre, análise única | A (`fread` + `select`) |
+| a mesma base consultada muitas vezes        | B                      |
+| poucas colunas de muitas                    | B                      |
+| filtro por competência ou UF                | B (partição)           |
+| junções grandes, janelas, SQL               | B (DuckDB)             |
+| entregar para quem não usa R                | A (CSV é universal)    |
+| a base não cabe na RAM                      | B (única opção)        |
+
+------------------------------------------------------------------------
+
+
+
+### Parte 4 — Modelagem: onde as rotas voltam a se encontrar
+
+Modelo estatístico **precisa** dos dados na RAM. Nem `lm()`, nem `glm()`, nem `survfit()` leem Parquet. Então a pergunta muda: não é “qual rota modela melhor”, e sim **quanto entra na RAM antes do modelo**.
+
+
+#### O experimento
+
+Modelar o valor unitário em função do procedimento e da competência, de duas formas:
+
+
+``` sourceCode
+library(data.table)
+
+d <- fread("artrite_reumatoide_sp.csv.gz", keepLeadingZeros = TRUE,
+           select = c("PA_CMP","PA_PROC_ID","PA_QTDAPR","PA_VALAPR"))
+d <- d[PA_VALAPR > 0 & PA_QTDAPR > 0][, vu := PA_VALAPR / PA_QTDAPR]
+
+# (i) microdados
+m1 <- lm(vu ~ factor(PA_PROC_ID) + factor(PA_CMP), data = d)
+
+# (ii) agregado: média por célula, ponderada pelo número de registros
+ag <- d[, .(vu = mean(vu), n = .N), by = .(PA_PROC_ID, PA_CMP)]
+m2 <- lm(vu ~ factor(PA_PROC_ID) + factor(PA_CMP), data = ag, weights = n)
+
+max(abs(coef(m1) - coef(m2)))          # diferença nos coeficientes
+cbind(micro = summary(m1)$coefficients[, 2],
+      agregado = summary(m2)$coefficients[, 2])[1:3, ]   # erros-padrão
+```
+
+
+
+#### O resultado, verificado
+
+Na simulação: **183.793 linhas** contra **384 linhas** agregadas.
+
+|                                   | microdados | agregado ponderado |
+|-----------------------------------|-----------:|-------------------:|
+| linhas                            |    183.793 |                384 |
+| tempo do `lm()`                   |     0,59 s |             0,00 s |
+| diferença máxima nos coeficientes |          — |         3,8 × 10⁻⁹ |
+| erro-padrão do intercepto         |      0,600 |              0,553 |
+| graus de liberdade residuais      |    183.754 |                345 |
+
+Os **coeficientes são idênticos** (a diferença é ruído de ponto flutuante). Isso não é coincidência: quando os preditores são exatamente as variáveis de agrupamento, a matriz de desenho é constante dentro de cada célula, e a média ponderada reproduz a estimativa de mínimos quadrados.
+
+Mas os **erros-padrão não são iguais**, e os graus de liberdade despencam de 183.754 para 345. A variabilidade dentro das células foi descartada junto com as linhas.
+
+
+#### O que isso significa na prática
+
+- Para **estimativas pontuais** de modelos cujos preditores são as variáveis de agrupamento, agregue no DuckDB e modele sobre o resultado. É a rota B levada até o fim.
+- Para **inferência** — intervalos de confiança, testes, erros-padrão — a agregação exige correção, ou o uso dos microdados. Uma saída intermediária é levar para a RAM apenas as colunas do modelo, já filtradas, o que quase sempre cabe.
+- Para modelos com preditores contínuos ou de nível individual (idade, sexo, tempo até o evento), **não há atalho**: os microdados precisam entrar, e o papel do Parquet é entregar o menor subconjunto suficiente.
+
+
+``` sourceCode
+library(arrow); library(dplyr)
+
+# O Parquet entrega ao modelo só o necessário: 4 colunas, já filtradas
+dados_modelo <- open_dataset("parquet/") |>
+  filter(PA_VALAPR > 0, PA_QTDAPR > 0) |>
+  select(PA_CMP, PA_PROC_ID, PA_QTDAPR, PA_VALAPR) |>
+  collect()
+
+modelo <- lm(I(PA_VALAPR / PA_QTDAPR) ~ factor(PA_PROC_ID) + factor(PA_CMP),
+             data = dados_modelo)
+```
+
+
+------------------------------------------------------------------------
+
+
+
+
+## Parte 5 — Estudo de caso: preços do BPS via de-para SIGTAP
+
+A base de artrite traz `PA_VALAPR`, o valor **aprovado pelo SIA**. Ele reflete a regra de financiamento, não necessariamente o que o item custou. Para avaliação econômica interessa também o preço de **aquisição**, e a fonte disso é o Banco de Preços em Saúde (BPS).
+
+O problema: o SIA identifica o item por `PA_PROC_ID` (código SIGTAP) e o BPS por `codigo_br` (CATMAT). O arquivo `sigtap_bps.csv` é a ponte.
+
+
+### 5.1 O de-para, e três armadilhas nele
+
+
+``` sourceCode
+library(data.table)
+
+dep <- fread("sigtap_bps.csv", colClasses = "character")
+str(dep)
+head(dep, 3)
+```
+
+
+``` text
+co_procedimento,sg_procedimento,tp_ceaf2020,no_procedimento,co_bps
+604320140,ABAT125,1A,ABATACEPTE 125 MG INJETÁVEL (POR SERINGA PREENCHIDA),BR0434765
+```
+
+
+#### Armadilha 1 — o zero à esquerda
+
+`co_procedimento` tem **9 caracteres**. `PA_PROC_ID` do SIA tem **10**. O código do abatacepte 125 mg é `0604320140`, não `604320140`. Sem o preenchimento, a junção devolve zero linhas — e `merge()` não avisa.
+
+Pior: a forma intuitiva de corrigir **não funciona**.
+
+
+``` sourceCode
+x <- "604320140"
+
+formatC(x, width = 10, flag = "0")            # character -> preenche com ESPAÇO
+```
+
+
+Mostrar resultado
+
+    ## [1] " 604320140"
+
+
+``` sourceCode
+sprintf("%010s", x)                           # idem
+```
+
+
+Mostrar resultado
+
+    ## [1] " 604320140"
+
+
+``` sourceCode
+formatC(as.integer(x), width = 10, flag = "0")   # numérico -> preenche com zero
+```
+
+
+Mostrar resultado
+
+    ## [1] "0604320140"
+
+O `flag = "0"` só age em modo numérico. Com texto, o R preenche com espaço, e `" 604320140"` parece certo na tela mas nunca casa com `"0604320140"`. Converter para inteiro resolve neste caso, mas quebra se o código tiver letra. A versão segura trabalha sempre sobre texto:
+
+
+``` sourceCode
+pad10 <- function(v) {
+  v <- trimws(as.character(v))
+  n <- nchar(v)
+  ifelse(n < 10L, paste0(strrep("0", pmax(0L, 10L - n)), v), v)
+}
+
+pad10(c("604320140", "0604320140", 604320140))
+```
+
+
+Mostrar resultado
+
+    ## [1] "0604320140" "0604320140" "0604320140"
+
+Em SQL não há essa pegadinha: `lpad(trim(co_procedimento), 10, '0')` preenche com o que se pede.
+
+
+#### Armadilha 2 — nem todo `co_bps` é um CATMAT
+
+
+``` sourceCode
+dep[!grepl("^BR[0-9]+$", trimws(co_bps)) & nzchar(trimws(co_bps)),
+    .N, by = co_bps]
+```
+
+
+Vinte linhas trazem `TED (INSTITUTO DE TECNOLOGIA EM IMUNOBIOLÓGICOS)` no lugar do código. São itens obtidos por **transferência**, não por compra — não têm preço no BPS. Um teste por `nzchar()` os aceitaria e a junção falharia adiante. O filtro correto é por padrão: `^BR[0-9]+$`.
+
+
+#### Armadilha 3 — um procedimento, vários CATMAT
+
+
+``` sourceCode
+dep_ok <- dep[grepl("^BR[0-9]+$", trimws(co_bps))]
+dep_ok[, .N, by = .(PA_PROC_ID = pad10(co_procedimento))][N > 1][order(-N)]
+```
+
+
+Dos 573 procedimentos do arquivo, 87 apontam para mais de um CATMAT — apresentações diferentes do mesmo princípio ativo, ou registros distintos do mesmo item. `merge()` com esses códigos **multiplica linhas**. Se a intenção era enriquecer e não expandir, isso corrompe qualquer soma feita depois.
+
+Duas saídas legítimas, e a escolha é do estudo:
+
+- **agrupar os registros de todos os CATMAT** (*pooling*) e calcular uma estatística única por procedimento — pondera pelo número de compras;
+- **calcular por CATMAT** e depois combinar (média das medianas) — dá peso igual a cada apresentação.
+
+Adotamos a primeira, que é a mais defensável quando o interesse é o preço praticado.
+
+
+#### Panorama do de-para
+
+|                                        | valor |
+|----------------------------------------|------:|
+| linhas                                 |   700 |
+| procedimentos distintos                |   573 |
+| linhas com CATMAT válido               |   357 |
+| linhas sem CATMAT (vazio ou TED)       |   343 |
+| procedimentos com pelo menos um CATMAT |   232 |
+| CATMAT distintos                       |   161 |
+| procedimentos com mais de um CATMAT    |    87 |
+
+Menos da metade dos procedimentos tem preço no BPS. Esse número precisa aparecer no relatório final: é a cobertura da imputação.
+
+
+
+### 5.2 Estatísticas de preço no BPS
+
+O BPS registra compras individuais, com preço unitário por unidade de fornecimento. A distribuição tem cauda longa — mesma apresentação comprada por instituições diferentes, em volumes diferentes, com preços que variam por ordem de grandeza. Por isso a **mediana e o IQR** importam tanto quanto a média.
+
+
+
+**Rota A — data.table**
+
+
+``` sourceCode
+pool <- merge(dep_ok, bps, by = "co_bps",
+              allow.cartesian = TRUE)
+
+preco_proc <- pool[, {
+  q <- quantile(preco_unitario,
+                c(.25, .75), names = FALSE)
+  .(n_catmat = uniqueN(co_bps),
+    n_bps    = .N,
+    preco_medio   = mean(preco_unitario),
+    preco_mediano = median(preco_unitario),
+    p25 = q[1], p75 = q[2],
+    iqr = q[2] - q[1])
+}, by = PA_PROC_ID]
+```
+
+
+
+**Rota B — DuckDB**
+
+
+``` sourceCode
+SELECT d.PA_PROC_ID,
+  count(DISTINCT d.co_bps)  AS n_catmat,
+  count(*)                  AS n_bps,
+  avg(b.preco_unitario)     AS preco_medio,
+  median(b.preco_unitario)  AS preco_mediano,
+  quantile_cont(b.preco_unitario,0.25) AS p25,
+  quantile_cont(b.preco_unitario,0.75) AS p75,
+  quantile_cont(b.preco_unitario,0.75)
+  - quantile_cont(b.preco_unitario,0.25) AS iqr
+FROM dep d JOIN bps b USING (co_bps)
+WHERE d.catmat_valido
+GROUP BY 1
+```
+
+
+
+
+> **Sobre o custo do IQR.** A média é uma passada linear; mediana e quantis exigem ordenar ou manter estrutura auxiliar. Em milhões de linhas isso é perceptível. O script traz o parâmetro `calcular_iqr`: com `FALSE`, só a média é calculada. Meça antes de abrir mão — no BPS, com centenas de milhares de linhas, a diferença foi de centésimos de segundo, e a robustez da mediana compensa largamente.
+
+
+#### O alerta da unidade de fornecimento
+
+O `preco_unitario` do BPS é por **unidade de fornecimento** (comprimido, frasco-ampola, seringa). O procedimento SIGTAP também declara a sua (`POR COMPRIMIDO`, `POR FRASCO AMPOLA`). Quase sempre coincidem — mas não sempre, e quando não coincidem o preço imputado erra por um fator inteiro. Carregue a informação junto e confira:
+
+
+``` sourceCode
+# lista as unidades do BPS encontradas para cada procedimento
+preco_proc[, .(PA_PROC_ID, unidades_bps, n_catmat)][
+  grepl("\\|", unidades_bps)]
+```
+
+
+Procedimentos com mais de uma unidade na mesma linha são candidatos a revisão manual.
+
+
+
+### 5.3 Imputação nas dispensações
+
+
+``` sourceCode
+disp <- fread("artrite_reumatoide_sp.csv.gz", keepLeadingZeros = TRUE,
+              select = c("PA_CMP","PA_PROC_ID","PA_QTDAPR","PA_VALAPR"))
+disp[, PA_PROC_ID := pad10(PA_PROC_ID)]
+
+disp <- merge(disp, preco_proc, by = "PA_PROC_ID", all.x = TRUE)
+
+disp[, `:=`(
+  valor_bps_medio   = PA_QTDAPR * preco_medio,
+  valor_bps_mediano = PA_QTDAPR * preco_mediano,
+  origem_valor = fifelse(PA_VALAPR > 0, "sia_observado",
+                  fifelse(!is.na(preco_medio), "bps_imputado", "sem_preco"))
+)]
+
+disp[, .(registros = .N, valor = sum(fcoalesce(PA_VALAPR, 0))),
+     by = origem_valor]
+```
+
+
+Os três valores passam a conviver na mesma linha, e a coluna `origem_valor` permite reportar o total com e sem imputação. Isso é o que separa uma estimativa auditável de um número sem procedência.
+
+
+### 5.4 Resultado final agregado por procedimento
+
+
+``` sourceCode
+nomes <- unique(dep[, .(PA_PROC_ID = pad10(co_procedimento),
+                        sigla = sg_procedimento,
+                        medicamento = no_procedimento)], by = "PA_PROC_ID")
+
+final <- disp[, .(
+  registros           = .N,
+  qt_aprovada         = sum(PA_QTDAPR, na.rm = TRUE),
+  valor_sia           = sum(PA_VALAPR, na.rm = TRUE),
+  registros_sem_valor = sum(PA_VALAPR == 0, na.rm = TRUE),
+  valor_bps_medio     = sum(valor_bps_medio,   na.rm = TRUE),
+  valor_bps_mediano   = sum(valor_bps_mediano, na.rm = TRUE),
+  preco_medio = first(preco_medio), preco_mediano = first(preco_mediano),
+  p25 = first(p25), p75 = first(p75), iqr = first(iqr),
+  n_bps = first(n_bps), n_catmat = first(n_catmat)
+), by = PA_PROC_ID]
+
+final <- merge(final, nomes, by = "PA_PROC_ID", all.x = TRUE)
+final[, razao_bps_sia := valor_bps_mediano / fifelse(valor_sia > 0, valor_sia, NA_real_)]
+setorder(final, -qt_aprovada)
+
+fwrite(final, "artrite_precos_bps_por_procedimento.csv")
+```
+
+
+Saída da simulação (valores fictícios; a estrutura é a real):
+
+| PA_PROC_ID | sigla   | qt_aprovada |  valor_sia | valor_bps_mediano |   iqr | n_bps | n_catmat |
+|------------|---------|------------:|-----------:|------------------:|------:|------:|---------:|
+| 0604320027 | EVER075 |      29.694 |  3.364.090 |         5.903.562 |  99,7 |   997 |        1 |
+| 0604320124 | ABAT250 |      29.603 | 41.936.695 |         2.091.257 |  33,6 |   965 |        1 |
+| 0604320108 | SIRO160 |      29.601 |  3.761.911 |        18.762.825 | 382,7 | 2.783 |        3 |
+| 0604320051 | MICO500 |      29.334 | 59.977.418 |        17.688.003 | 468,2 | 1.911 |        2 |
+
+
+#### Como ler a coluna `razao_bps_sia`
+
+Ela compara o gasto reconstruído pelo preço de aquisição com o valor aprovado pelo SIA. Razões muito distantes de 1 merecem investigação, e cada direção tem uma leitura própria:
+
+- **razão ≫ 1** — o SIA aprovou bem menos que o preço de compra. Costuma indicar procedimento com financiamento por outro bloco, ou valor zerado no SIA.
+- **razão ≪ 1** — o preço do BPS ficou muito abaixo. Suspeite de incompatibilidade de unidade de fornecimento (comprimido vs. caixa) ou de CATMAT de apresentação diferente.
+- **`NA`** — sem preço no BPS. Reporte quantos procedimentos e qual fração da quantidade total ficaram descobertos.
+
+
+``` sourceCode
+final[, .(
+  procedimentos      = .N,
+  com_preco_bps      = sum(!is.na(preco_medio)),
+  qt_total           = sum(qt_aprovada),
+  qt_com_preco       = sum(qt_aprovada[!is.na(preco_medio)]),
+  pct_qt_coberta     = round(100 * sum(qt_aprovada[!is.na(preco_medio)]) /
+                             sum(qt_aprovada), 1)
+)]
+```
+
+
+------------------------------------------------------------------------
+
+
+
+
+## Síntese
+
+
+### As duas rotas
+
+|                        | Rota A — `fread` + `data.table`     | Rota B — Parquet + DuckDB  |
+|------------------------|-------------------------------------|----------------------------|
+| unidade                | um arquivo                          | um diretório particionado  |
+| execução               | ansiosa                             | preguiçosa até `collect()` |
+| custo de entrada       | descomprimir e interpretar tudo     | ler o rodapé               |
+| seleção de colunas     | `select =` (obrigatório na prática) | automática                 |
+| filtro por competência | após carregar                       | pula a partição            |
+| teto                   | a RAM disponível                    | o disco disponível         |
+| junção grande, janela  | possível, custosa                   | natural                    |
+| entrega externa        | imediata                            | exporta para CSV           |
+
+Nenhuma substitui a outra. A rota A é o caminho curto quando o dado cabe; a rota B é o único caminho quando não cabe, e o mais econômico quando a base é consultada várias vezes.
+
+
+### O que ficou medido
+
+- Mesmos registros: **781 MB** em CSV plano, **42 MB** em `.csv.gz`, **27 MB** em Parquet.
+- `fread()` sem `select` custou 4× mais tempo e 20× mais RAM que com `select`.
+- Agregar antes de modelar preservou os **coeficientes** (diferença de 10⁻⁹) mas alterou **erros-padrão** e graus de liberdade.
+- O de-para SIGTAP × BPS cobre 232 dos 573 procedimentos; 87 têm mais de um CATMAT.
+
+
+### Os erros silenciosos desta aula
+
+1.  `fread()` sem `keepLeadingZeros` transforma `"0604320140"` em `604320140`.
+2.  `formatC(x, flag = "0")` e `sprintf("%010s", x)` preenchem com **espaço** quando `x` é texto.
+3.  `nzchar(co_bps)` aceita `"TED (...)"` como se fosse CATMAT.
+4.  `merge()` com chave 1:N multiplica linhas e infla somas.
+5.  Média em vez de mediana no BPS: uma compra atípica desloca o preço de referência.
+6.  Preço por unidade de fornecimento incompatível com a unidade do procedimento.
+
+Todos passam sem erro, sem aviso, e produzem um número plausível. É por isso que cada um deles precisa de uma verificação explícita no código.
+
+
+### Próximo passo
+
+A tabela `artrite_precos_bps_por_procedimento.csv` fecha o ciclo: quantidade dispensada, valor aprovado pelo SIA, valor reconstruído pelo preço de aquisição e a dispersão desse preço. É a entrada dos modelos de custo-efetividade e das análises de sensibilidade, onde o IQR do BPS vira o intervalo do parâmetro de custo.
+
+------------------------------------------------------------------------
+
+
+### Referências
+
+- [Banco de Preços em Saúde — BPS](https://www.gov.br/saude/pt-br/acesso-a-informacao/banco-de-precos)
+- [SIGTAP — Sistema de Gerenciamento da Tabela de Procedimentos](http://sigtap.datasus.gov.br/)
+- [DuckDB — funções de agregação e quantis](https://duckdb.org/docs/sql/functions/aggregates)
+- [Apache Arrow — `open_dataset()`](https://arrow.apache.org/docs/r/reference/open_dataset.html)
+- [data.table — `fread()`](https://rdatatable.gitlab.io/data.table/reference/fread.html)
+- [Parquet — codificações e compressão](https://parquet.apache.org/docs/file-format/data-pages/encodings/)
+
+
+
+
+

@@ -1,0 +1,85 @@
+## Resultados observados na aula de 2025
+
+Os resultados a seguir foram incorporados à aula de 2026 como evidência de execução. As credenciais são públicas e pertencem ao ambiente aberto da atividade.
+
+### Listagem inicial
+
+```r
+library(curl)
+url <- "sftp://45.231.133.29:7891/srv/ftp/dadosabertos/"
+userpwd <- "livre:12345"
+h <- new_handle(userpwd = userpwd, dirlistonly = TRUE)
+con <- curl(url, handle = h)
+arquivos <- readLines(con)
+close(con)
+head(arquivos)
+```
+
+```text
+[1] "."
+[2] ".."
+[3] "tf_sia_200801_pa_093_lin_subgrupo304.20251105.134649.csv.gz"
+[4] "tf_sia_200801_pa_004_pro_subgrupo304.20251105.13153497.csv.gz"
+[5] "tf_sia_200801_pa_088_lla_subgrupo304.20251105.756110.csv.gz"
+[6] "tf_sia_200801_pa_095_les_subgrupo604.20251105.6344260.csv.gz"
+```
+
+### Seleção de um arquivo pequeno
+
+```r
+arquivos_csv <- arquivos[grepl("\\.csv\\.gz$", arquivos)]
+n_reg <- as.integer(sub(".*\\.([0-9]+)\\.csv\\.gz$", "\\1", arquivos_csv))
+idx <- which(n_reg < 20000)[1]
+arquivo_escolhido <- arquivos_csv[idx]
+cat("Arquivo escolhido:", arquivo_escolhido, "\\n")
+```
+
+```text
+Arquivo escolhido: tf_sia_200801_pa_045_pom_subgrupo604.20251105.1398.csv.gz
+```
+
+### Download confirmado
+
+```r
+url_arquivo <- paste0(url, arquivo_escolhido)
+destino <- arquivo_escolhido
+h <- new_handle(userpwd = "livre:12345")
+curl_download(url_arquivo, destfile = destino, mode = "wb", handle = h)
+cat("Arquivo salvo em:", destino, "\\n")
+```
+
+```text
+Arquivo salvo em: tf_sia_200801_pa_045_pom_subgrupo604.20251105.1398.csv.gz
+```
+
+### Leitura e dimensões
+
+```r
+library(data.table)
+df <- fread(destino)
+dim(df)
+df[1:3, 9:11]
+```
+
+```text
+[1] 1398   29
+
+        nu_cnspcn co_procedimento co_cidpri
+1: 178772228470654       604240104      E740
+2: 172373491300552       604240104      E740
+3: 171277821143942       604240104      E740
+```
+
+### Outra coorte usada na navegação
+
+```text
+Rótulo: 006_fer
+Arquivo: tf_sia_200801_pa_006_fer_subgrupo604.20251105.23523.csv.gz
+Registros: 23.523
+Competência inicial exibida: 201504
+```
+
+### Interpretação
+
+A dimensão observada, 1.398 linhas por 29 colunas, correspondeu à quantidade declarada no nome do arquivo. Esse controle deve ser repetido para qualquer coorte: o nome informa a contagem esperada, enquanto `nrow()` fornece a contagem após o download e a leitura.
+

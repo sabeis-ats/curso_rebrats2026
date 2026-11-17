@@ -1,0 +1,698 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  error = FALSE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 5,
+  fig.align = "center"
+)
+
+options(
+  stringsAsFactors = FALSE,
+  scipen = 999,
+  width = 100
+)
+
+executar_sftp <- isTRUE(params$executar_sftp)
+```
+
+<div class="course-box">
+<strong>Data:</strong> 18/11/2026<br>
+<strong>Horário:</strong> 8h às 12h30<br>
+<strong>Local:</strong> Sala 109<br>
+<strong>Formato:</strong> presencial, nível intermediário<br>
+<strong>Docentes:</strong> Felipe Ferré e Mariá Pereira<br>
+<strong>Material necessário:</strong> computador com R, RStudio e acesso à internet
+</div>
+
+## Apresentação
+
+### Oferta do curso
+
+**Dados da SABEIS via FTP utilizando a Linguagem R**
+
+O curso capacita os participantes a acessar, baixar, organizar, ler e analisar
+dados da Sala Aberta de Inteligência em Saúde (SABEIS) com a linguagem R. A
+atividade enfatiza o uso desses dados em Avaliação de Tecnologias em Saúde
+(ATS), especialmente na estimativa de demanda aferida para análises de impacto
+orçamentário e no monitoramento pós-incorporação.
+
+O nome oficial do curso usa “FTP”. O serviço utilizado na prática é **SFTP**,
+isto é, transferência de arquivos sobre SSH.
+
+### Resultado esperado
+
+Ao final da aula, o participante deverá ser capaz de:
+
+1. verificar se a instalação local do R oferece suporte a SFTP;
+2. conectar-se ao repositório público da SABEIS;
+3. listar e interpretar os nomes dos arquivos disponíveis;
+4. selecionar uma coorte adequada à atividade;
+5. baixar um arquivo `csv.gz` sem descompactá-lo manualmente;
+6. ler e validar o arquivo no R;
+7. relacionar a coorte às tabelas auxiliares da SABEIS;
+8. produzir um resumo mensal de demanda aferida.
+
+### Organização da manhã
+
+| Horário | Atividade | Produto |
+|:--|:--|:--|
+| 08:00–08:20 | Apresentação da SABEIS e dos dados abertos do SUS | Contexto analítico definido |
+| 08:20–08:40 | Preparação do R e diagnóstico do SFTP | Ambiente validado |
+| 08:40–09:20 | Estrutura do repositório e gramática dos arquivos | Catálogo de coortes |
+| 09:20–10:05 | Listagem, seleção e download | Arquivo local validado |
+| 10:05–10:15 | Intervalo | — |
+| 10:15–11:00 | Leitura, inspeção e controle de qualidade | Base pronta para análise |
+| 11:00–11:40 | Tabelas auxiliares e enriquecimento | Coorte documentada |
+| 11:40–12:15 | Demanda aferida | Série mensal |
+| 12:15–12:30 | Exercício e fechamento | Checklist de reprodução |
+
+## SABEIS e dados abertos do SUS
+
+### A Sala Aberta de Inteligência em Saúde
+
+A SABEIS é uma metodologia de extração, transformação, carga e curadoria de
+dados administrativos do SUS. O trabalho começou em 2019 no âmbito do
+DGITS/SECTICS/MS e apoia a Conitec desde 2020.
+
+Seus princípios são:
+
+- uso de software livre;
+- uso de dados abertos;
+- rastreabilidade das etapas de tratamento;
+- validação contra marcadores oficiais de produção;
+- transparência dos critérios de formação das coortes;
+- reutilização dos dados em estudos de ATS.
+
+### O evento antes da tabela
+
+Antes de iniciar qualquer análise, registre:
+
+1. qual evento administrativo cada linha representa;
+2. qual é a unidade de análise: procedimento, autorização, usuário ou
+   estabelecimento;
+3. qual competência está sendo usada;
+4. quais registros e pessoas ficam fora da fonte;
+5. qual marcador oficial será usado para validar os resultados.
+
+Uma linha do SIA/SUS não representa automaticamente uma pessoa. A mesma pessoa
+pode gerar várias linhas e alguns subconjuntos não contêm identificador
+suficiente para análise longitudinal.
+
+### Fontes usadas na aula
+
+| Fonte | Uso | Endereço |
+|:--|:--|:--|
+| TabNet | Consulta e validação de agregados | <https://datasus.saude.gov.br/informacoes-de-saude-tabnet/> |
+| Repositório de disseminação do DEMAS/SEIDIGI/MS | Arquivos públicos de disseminação | <ftp://ftp.datasus.gov.br/dissemin/publicos/> |
+| SABEIS | Coortes curadas e arquivos tabulados | `sftp://45.231.133.29:7891/srv/ftp/dadosabertos/` |
+| BD Geral SABEIS | Tabelas auxiliares | <https://github.com/sabeis-ats/bd_geral> |
+| ETL SABEIS | Descrição do processo | <https://rpubs.com/sabeis/etl> |
+
+## Preparação do ambiente
+
+### Pacotes
+
+Execute uma vez no console do R:
+
+```{r instalar-pacotes, eval=FALSE}
+pacotes <- c(
+  "curl",
+  "data.table",
+  "knitr",
+  "rmarkdown"
+)
+
+faltantes <- pacotes[!vapply(pacotes, requireNamespace, logical(1), quietly = TRUE)]
+
+if (length(faltantes) > 0) {
+  install.packages(faltantes)
+}
+```
+
+### Compilação segura do material
+
+Por padrão, este documento compila sem abrir a conexão SFTP:
+
+```yaml
+params:
+  executar_sftp: false
+```
+
+Depois de instalar os pacotes e confirmar a internet, altere o parâmetro para
+`true` e compile novamente. Todos os blocos da prática serão executados.
+
+### Diagnóstico do suporte a SFTP
+
+```{r diagnostico-sftp, eval=executar_sftp}
+versao_curl <- curl::curl_version()
+versao_curl$version
+versao_curl$protocols
+
+if (!"sftp" %in% versao_curl$protocols) {
+  stop(
+    "A biblioteca libcurl desta instalação não oferece suporte a SFTP. ",
+    "Atualize o pacote curl/libcurl antes de continuar."
+  )
+}
+```
+
+## Acesso ao repositório da SABEIS
+
+### Parâmetros de conexão
+
+As credenciais abaixo são abertas e fazem parte do ambiente público da aula.
+
+```{r credenciais}
+sabeis <- list(
+  host = "45.231.133.29",
+  porta = 7891L,
+  usuario = "livre",
+  senha = "12345",
+  diretorio = "/srv/ftp/dadosabertos/",
+  url_base = "sftp://45.231.133.29:7891/srv/ftp/dadosabertos/",
+  userpwd = "livre:12345"
+)
+
+sabeis$url_base
+sabeis$userpwd
+```
+
+### Listar o diretório remoto
+
+```{r listar-arquivos, eval=executar_sftp}
+handle_listagem <- curl::new_handle(
+  userpwd = sabeis$userpwd,
+  dirlistonly = TRUE
+)
+
+conexao <- curl::curl(
+  url = sabeis$url_base,
+  handle = handle_listagem
+)
+
+arquivos <- readLines(conexao, warn = FALSE)
+close(conexao)
+
+arquivos <- trimws(arquivos)
+arquivos <- arquivos[nzchar(arquivos)]
+
+length(arquivos)
+head(arquivos, 20)
+```
+
+### Manter apenas arquivos `csv.gz`
+
+```{r filtrar-csv, eval=executar_sftp}
+arquivos_csv <- arquivos[grepl("\\.csv\\.gz$", arquivos, ignore.case = TRUE)]
+
+length(arquivos_csv)
+head(arquivos_csv, 20)
+```
+
+### Gramática do nome do arquivo
+
+Um nome típico é:
+
+```text
+tf_sia_200801_pa_058_fen_subgrupo604.20250907.80541.csv.gz
+```
+
+| Parte | Significado no exemplo |
+|:--|:--|
+| `tf` | tabela fato |
+| `sia` | sistema de origem |
+| `200801` | competência inicial |
+| `pa` | arquivo do SIA/SUS |
+| `058` | código da diretriz |
+| `fen` | sigla do PCDT |
+| `subgrupo604` | recorte da coorte |
+| `20250907` | data de geração |
+| `80541` | quantidade declarada de registros |
+
+### Converter os nomes em catálogo
+
+```{r funcao-interpretar-nome}
+interpretar_nome_sabeis <- function(nomes) {
+  modelo <- data.frame(
+    sistema = character(),
+    competencia_inicial = character(),
+    arquivo_sia = character(),
+    nu_diretriz = character(),
+    sg_pcdt = character(),
+    recorte = character(),
+    data_geracao_chr = character(),
+    qt_registro_chr = character(),
+    stringsAsFactors = FALSE
+  )
+
+  partes <- strcapture(
+    pattern = paste0(
+      "^tf_([^_]+)_([0-9]{6})_([^_]+)_([0-9]{3})_",
+      "([^_]+)_(.+)\\.([0-9]{8})\\.([0-9]+)\\.csv\\.gz$"
+    ),
+    x = basename(nomes),
+    proto = modelo,
+    perl = TRUE
+  )
+
+  partes$no_arquivo <- basename(nomes)
+  partes$data_geracao <- as.Date(partes$data_geracao_chr, format = "%Y%m%d")
+  partes$qt_registro <- suppressWarnings(as.integer(partes$qt_registro_chr))
+  partes$nome_valido <- !is.na(partes$sistema)
+
+  partes[c(
+    "no_arquivo",
+    "nome_valido",
+    "sistema",
+    "competencia_inicial",
+    "arquivo_sia",
+    "nu_diretriz",
+    "sg_pcdt",
+    "recorte",
+    "data_geracao",
+    "qt_registro"
+  )]
+}
+
+interpretar_nome_sabeis(
+  "tf_sia_200801_pa_058_fen_subgrupo604.20250907.80541.csv.gz"
+)
+```
+
+```{r criar-catalogo, eval=executar_sftp}
+catalogo <- interpretar_nome_sabeis(arquivos_csv)
+
+table(catalogo$nome_valido, useNA = "ifany")
+head(catalogo[catalogo$nome_valido, ], 10)
+```
+
+### Selecionar uma coorte para a aula
+
+O parâmetro `limite_registros` evita a escolha inicial de um arquivo grande.
+
+```{r selecionar-coorte, eval=executar_sftp}
+candidatos <- catalogo[
+  catalogo$nome_valido &
+    !is.na(catalogo$qt_registro) &
+    catalogo$qt_registro > 0 &
+    catalogo$qt_registro <= params$limite_registros,
+]
+
+candidatos <- candidatos[
+  order(candidatos$qt_registro, candidatos$no_arquivo),
+]
+
+if (nrow(candidatos) == 0) {
+  stop("Nenhum arquivo atende ao limite definido em params$limite_registros.")
+}
+
+head(candidatos, 20)
+
+arquivo_escolhido <- candidatos[1, ]
+arquivo_escolhido
+```
+
+Para escolher outra diretriz, filtre explicitamente a sigla ou o código:
+
+```{r exemplo-escolha, eval=FALSE}
+candidatos_fen <- subset(
+  catalogo,
+  nome_valido & sg_pcdt == "fen" & qt_registro <= 100000
+)
+
+candidatos_fen <- candidatos_fen[order(candidatos_fen$qt_registro), ]
+candidatos_fen
+```
+
+### Download atômico
+
+O arquivo é baixado inicialmente com o sufixo `.part`. O nome final só é usado
+depois da conclusão da transferência.
+
+```{r funcao-download}
+baixar_sabeis <- function(nome_arquivo, diretorio = "dados_sabeis") {
+  dir.create(diretorio, recursive = TRUE, showWarnings = FALSE)
+
+  destino <- file.path(diretorio, basename(nome_arquivo))
+  temporario <- paste0(destino, ".part")
+  url_arquivo <- paste0(sabeis$url_base, basename(nome_arquivo))
+
+  if (file.exists(temporario)) {
+    unlink(temporario)
+  }
+
+  handle_download <- curl::new_handle(userpwd = sabeis$userpwd)
+
+  curl::curl_download(
+    url = url_arquivo,
+    destfile = temporario,
+    mode = "wb",
+    handle = handle_download,
+    quiet = FALSE
+  )
+
+  if (!file.exists(temporario) || file.info(temporario)$size == 0) {
+    stop("O download não produziu um arquivo válido.")
+  }
+
+  if (file.exists(destino)) {
+    unlink(destino)
+  }
+
+  renomeado <- file.rename(temporario, destino)
+
+  if (!renomeado) {
+    stop("Não foi possível renomear o arquivo temporário.")
+  }
+
+  normalizePath(destino, winslash = "/", mustWork = TRUE)
+}
+```
+
+```{r baixar-coorte, eval=executar_sftp}
+caminho_arquivo <- baixar_sabeis(arquivo_escolhido$no_arquivo)
+
+caminho_arquivo
+file.info(caminho_arquivo)[c("size", "mtime")]
+```
+
+## Leitura e validação
+
+### Ler o arquivo compactado
+
+`data.table::fread()` lê `csv.gz` diretamente. A leitura inicial como texto
+preserva códigos, zeros à esquerda e identificadores longos.
+
+```{r ler-arquivo, eval=executar_sftp}
+dados <- data.table::fread(
+  input = caminho_arquivo,
+  colClasses = "character",
+  na.strings = c("", "NA", "NULL"),
+  encoding = "UTF-8",
+  showProgress = TRUE
+)
+
+data.table::setnames(dados, tolower(names(dados)))
+
+dim(dados)
+names(dados)
+dados[1:min(.N, 10)]
+```
+
+### Conferir a quantidade declarada no nome
+
+```{r validar-contagem, eval=executar_sftp}
+registros_observados <- nrow(dados)
+registros_declarados <- arquivo_escolhido$qt_registro
+diferenca <- registros_observados - registros_declarados
+
+validacao_contagem <- data.frame(
+  arquivo = arquivo_escolhido$no_arquivo,
+  registros_declarados = registros_declarados,
+  registros_observados = registros_observados,
+  diferenca = diferenca,
+  contagem_confere = identical(
+    as.integer(registros_observados),
+    as.integer(registros_declarados)
+  )
+)
+
+validacao_contagem
+```
+
+Uma diferença não deve ser corrigida silenciosamente. Registre a versão do
+arquivo, a data da extração e investigue a regra de geração da coorte.
+
+### Perfil mínimo da base
+
+```{r perfil-minimo, eval=executar_sftp}
+perfil <- data.frame(
+  coluna = names(dados),
+  classe = vapply(dados, function(x) paste(class(x), collapse = "/"), character(1)),
+  ausentes = vapply(dados, function(x) sum(is.na(x) | x == ""), integer(1)),
+  distintos = vapply(dados, data.table::uniqueN, integer(1)),
+  stringsAsFactors = FALSE
+)
+
+perfil
+```
+
+### Verificar campos importantes
+
+```{r verificar-campos, eval=executar_sftp}
+campos_esperados <- c(
+  "nu_competencia",
+  "nu_cnspcn",
+  "co_procedimento",
+  "qt_aprovada"
+)
+
+data.frame(
+  campo = campos_esperados,
+  presente = campos_esperados %in% names(dados)
+)
+```
+
+## Tabelas auxiliares da SABEIS
+
+### Diretrizes, doenças, procedimentos e território
+
+O repositório `sabeis-ats/bd_geral` contém dimensões reutilizadas no processo de
+curadoria. Os arquivos podem ser lidos diretamente pelo R.
+
+```{r ler-dimensoes, eval=executar_sftp}
+url_bd_geral <- "https://raw.githubusercontent.com/sabeis-ats/bd_geral/refs/heads/main/"
+
+td_diretriz_cnv <- data.table::fread(
+  paste0(url_bd_geral, "td_diretriz_cnv.csv"),
+  colClasses = "character"
+)
+
+td_doenca_cid10 <- data.table::fread(
+  paste0(url_bd_geral, "td_doenca_cid10.csv"),
+  colClasses = "character"
+)
+
+td_sigtap <- data.table::fread(
+  paste0(url_bd_geral, "td_sigtap.csv"),
+  colClasses = "character"
+)
+
+td_municipio <- data.table::fread(
+  paste0(url_bd_geral, "municipio_regiao_saude_amazonia_legal_ips.csv"),
+  colClasses = "character"
+)
+
+list(
+  diretrizes = dim(td_diretriz_cnv),
+  doencas = dim(td_doenca_cid10),
+  sigtap = dim(td_sigtap),
+  municipios = dim(td_municipio)
+)
+```
+
+### Identificar a diretriz da coorte
+
+```{r juntar-diretriz, eval=executar_sftp}
+data.table::setnames(td_diretriz_cnv, tolower(names(td_diretriz_cnv)))
+
+if (!"nu_diretriz" %in% names(td_diretriz_cnv)) {
+  stop("A coluna nu_diretriz não foi encontrada em td_diretriz_cnv.")
+}
+
+td_diretriz_cnv[, nu_diretriz_chave := sprintf(
+  "%03d",
+  suppressWarnings(as.integer(gsub("[^0-9]", "", nu_diretriz)))
+)]
+
+catalogo_dt <- data.table::as.data.table(catalogo)
+
+catalogo_enriquecido <- merge(
+  x = catalogo_dt,
+  y = td_diretriz_cnv,
+  by.x = "nu_diretriz",
+  by.y = "nu_diretriz_chave",
+  all.x = TRUE,
+  sort = FALSE
+)
+
+colunas_exibir <- intersect(
+  c(
+    "nu_diretriz",
+    "sg_pcdt",
+    "no_diretriz",
+    "co_cid",
+    "no_arquivo",
+    "qt_registro",
+    "data_geracao"
+  ),
+  names(catalogo_enriquecido)
+)
+
+head(catalogo_enriquecido[, ..colunas_exibir], 20)
+```
+
+### Competência do SIGTAP
+
+Procedimentos e valores devem ser relacionados à versão do SIGTAP válida para
+a competência do fato. Usar apenas a versão mais recente em uma série histórica
+pode alterar descrições, compatibilidades e valores.
+
+Antes do relacionamento, verifique quais campos de competência estão
+disponíveis:
+
+```{r inspecionar-sigtap, eval=executar_sftp}
+data.table::setnames(td_sigtap, tolower(names(td_sigtap)))
+
+grep(
+  pattern = "compet|proced|valor",
+  x = names(td_sigtap),
+  value = TRUE
+)
+```
+
+## Demanda aferida
+
+### Preparar competência e quantidade
+
+```{r preparar-demanda, eval=executar_sftp}
+campos_obrigatorios <- c("nu_competencia", "nu_cnspcn")
+campos_ausentes <- setdiff(campos_obrigatorios, names(dados))
+
+if (length(campos_ausentes) > 0) {
+  stop(
+    "Campos necessários ausentes: ",
+    paste(campos_ausentes, collapse = ", ")
+  )
+}
+
+dados[, nu_competencia_chr := sprintf(
+  "%06d",
+  suppressWarnings(as.integer(nu_competencia))
+)]
+
+dados[, mes := as.Date(
+  paste0(nu_competencia_chr, "01"),
+  format = "%Y%m%d"
+)]
+
+if ("qt_aprovada" %in% names(dados)) {
+  dados[, qt_aprovada_num := suppressWarnings(
+    as.numeric(gsub(",", ".", qt_aprovada, fixed = TRUE))
+  )]
+} else {
+  dados[, qt_aprovada_num := NA_real_]
+}
+```
+
+### Contar usuários distintos por mês
+
+```{r resumir-demanda, eval=executar_sftp}
+demanda_mensal <- dados[
+  !is.na(mes) & !is.na(nu_cnspcn) & nzchar(nu_cnspcn),
+  .(
+    usuarios_distintos = data.table::uniqueN(nu_cnspcn),
+    registros = .N,
+    quantidade_aprovada = sum(qt_aprovada_num, na.rm = TRUE)
+  ),
+  by = mes
+][order(mes)]
+
+demanda_mensal
+```
+
+### Visualizar a série
+
+```{r grafico-demanda, eval=executar_sftp}
+plot(
+  x = demanda_mensal$mes,
+  y = demanda_mensal$usuarios_distintos,
+  type = "o",
+  pch = 16,
+  col = "#17365d",
+  xlab = "Competência",
+  ylab = "Usuários distintos",
+  main = "Demanda aferida por competência"
+)
+
+grid()
+```
+
+<div class="warning-box">
+<strong>Interpretação.</strong> A contagem representa identificadores distintos
+observados nos registros selecionados. Ela não é automaticamente igual à
+prevalência da doença, ao número de pessoas elegíveis para uma tecnologia ou à
+população que deveria receber tratamento.
+</div>
+
+## Exercício prático
+
+Escolha uma diretriz e produza uma ficha contendo:
+
+1. nome completo e código da diretriz;
+2. nome do arquivo utilizado;
+3. competência inicial;
+4. data de geração;
+5. quantidade declarada e quantidade observada de registros;
+6. principais campos disponíveis;
+7. número mensal de usuários distintos;
+8. limitações para uso em análise de impacto orçamentário;
+9. marcador oficial escolhido para validação.
+
+Modelo de registro:
+
+```{r ficha-extracao, eval=FALSE}
+ficha <- list(
+  diretriz = NA_character_,
+  nu_diretriz = NA_character_,
+  arquivo = arquivo_escolhido$no_arquivo,
+  competencia_inicial = arquivo_escolhido$competencia_inicial,
+  data_geracao = arquivo_escolhido$data_geracao,
+  registros_declarados = arquivo_escolhido$qt_registro,
+  registros_observados = nrow(dados),
+  data_extracao = Sys.time(),
+  marcador_validacao = NA_character_,
+  limitacoes = NA_character_
+)
+
+ficha
+```
+
+## Checklist de encerramento
+
+- [ ] O protocolo SFTP foi reconhecido pela instalação do `curl`.
+- [ ] A conexão usou `sftp://45.231.133.29:7891/srv/ftp/dadosabertos/`.
+- [ ] As credenciais `livre:12345` foram aceitas.
+- [ ] O catálogo foi criado a partir do nome dos arquivos.
+- [ ] A coorte foi escolhida por critérios explícitos.
+- [ ] O download terminou antes da renomeação do arquivo.
+- [ ] A contagem observada foi comparada à contagem declarada.
+- [ ] Os códigos foram preservados como texto na primeira leitura.
+- [ ] A diretriz foi relacionada às tabelas auxiliares.
+- [ ] A competência correta do SIGTAP foi considerada.
+- [ ] A demanda aferida foi interpretada como medida administrativa observada.
+- [ ] As limitações e a fonte de validação foram registradas.
+
+## Referências
+
+- FERRÉ, Felipe; OLIVEIRA, Gustavo; QUEIROZ, Mariana; GONÇALVES, Flávio.
+  Sala de Situação aberta com dados administrativos para gestão de Protocolos
+  Clínicos e Diretrizes Terapêuticas de tecnologias providas pelo SUS. Anais do
+  SBCAS, 2020. <https://sol.sbc.org.br/index.php/sbcas/article/view/11530>
+- FERRÉ, Felipe. Modelagem e gestão de banco de dados com SQL e integração com
+  o R. In: *Avaliação de impacto das políticas de saúde: um guia para o SUS*.
+  Ministério da Saúde, 2023.
+  <https://bvsms.saude.gov.br/bvs/publicacoes/avaliacao_impacto_politicas_saude_guia_sus.pdf>
+- SABEIS. Processo de ETL. <https://rpubs.com/sabeis/etl>
+- SABEIS. Tabelas auxiliares. <https://github.com/sabeis-ats/bd_geral>
+- SABEIS. Curso ReBrATS 2025. <https://github.com/sabeis-ats/curso_rebrats2025>
+
+## Informações da sessão
+
+```{r session-info}
+sessionInfo()
+```

@@ -1,0 +1,2892 @@
+## Microdados do SUS com R para Avaliação Econômica
+
+#### Ecossistema de dados do SUS com R - parte 1: ETL via FTP
+
+
+Ocultar menu
+
+
+**Objetivo do curso:** Capacitar participantes a extrair, validar, tratar e analisar microdados do SUS com R, integrando fontes de custos/preços e técnicas aplicadas à avaliação econômica.
+
+
+## Ecossistema de dados do SUS com R
+
+
+### Ementa
+
+- Como os dados do SUS são produzidos, organizados e disseminados?
+- Quais são os principais sistemas de informação e seus subsistemas?
+- Como acessar arquivos no FTP de disseminação do SUS, APIs e portais de dados abertos?
+- Como baixar e ler um arquivo DBC no R?
+- Como interpretar campos usando um dicionário de dados?
+- Como integrar produção ambulatorial, internações, estabelecimentos e procedimentos?
+- Como utilizar esses dados em análises de economia da saúde?
+- Quais cuidados de qualidade, temporalidade, governança e interpretação devem ser adotados?
+
+> **Objetivo da aula:** construir um fluxo reprodutível e intermediário no R, partindo de um arquivo público do SUS até uma tabela enriquecida com metadados e informações cadastrais.
+
+------------------------------------------------------------------------
+
+
+### Fundamentos
+
+
+#### O ecossistema de dados do SUS via FTP
+
+O SUS produz dados durante atividades assistenciais, administrativas, epidemiológicas, regulatórias e financeiras. Esses registros são enviados, validados, centralizados e disseminados por diferentes estratégias de consolidação e sistemas de informação.
+
+Um mesmo fenômeno pode exigir mais de uma fonte. Para estudar a produção de um procedimento, por exemplo, pode ser necessário combinar:
+
+- **SIA:** produção ambulatorial;
+- **SIH:** internações hospitalares;
+- **CNES:** características dos estabelecimentos;
+- **SIGTAP:** descrição e atributos dos procedimentos;
+- **SIM:** mortalidade;
+- **SINASC:** nascidos vivos;
+- **SINAN:** agravos de notificação.
+
+> Os sistemas não são apenas arquivos. Cada um possui finalidade, fluxo, unidade de registro, periodicidade, regras de validação e dicionário próprios.
+
+
+##### Panorama dos principais centralizadores
+
+| Sistema | Período observado | Subsistemas | Arquivos DBC | Volume compactado | Registros catalogados |
+|---------|------------------:|------------:|-------------:|------------------:|----------------------:|
+| SIA     |         1994-2026 |          14 |       58.572 |          429,6 GB |          7,03 bilhões |
+| SIH     |         1992-2026 |           6 |       31.937 |           83,1 GB |           1,25 bilhão |
+| CNES    |         2005-2026 |          18 |       80.191 |           53,3 GB |         619,0 milhões |
+| SINASC  |         1994-2024 |           2 |        1.666 |           10,6 GB |          33,8 milhões |
+| SIM     |         1996-2024 |           6 |          940 |           10,0 GB |          32,8 milhões |
+| SINAN   |         1999-2025 |          45 |          741 |            2,6 GB |          23,5 milhões |
+
+> Os totais de registros refletem o preenchimento disponível no catálogo. Valor zero pode significar contagem ainda não calculada, e não ausência de registros no arquivo.
+
+
+##### Subsistemas ilustrativos
+
+| Sistema | Subsistema | Temporalidade típica | Arquivos DBC | Volume compactado | Registros catalogados |
+|---------|------------|----------------------|-------------:|------------------:|----------------------:|
+| SIA     | PA         | Mensal por UF        |       10.792 |          214,2 GB |          3,76 bilhões |
+| SIH     | RD         | Mensal por UF        |       11.157 |           25,4 GB |          83,4 milhões |
+| SIH     | SP         | Mensal por UF        |        9.412 |           56,4 GB |           1,16 bilhão |
+| CNES    | ST         | Mensal por UF        |        6.779 |            3,3 GB |          31,0 milhões |
+| SIM     | DO         | Anual por UF         |          812 |            9,6 GB |          31,7 milhões |
+| SINASC  | DN         | Anual por UF         |        1.558 |           10,4 GB |          33,8 milhões |
+
+Essas diferenças alteram a estratégia analítica:
+
+- arquivos mensais exigem controle de competência;
+- arquivos anuais podem ter defasagem de consolidação;
+- subsistemas com várias linhas por evento não podem ser somados sem definir a unidade de análise;
+- grande quantidade de arquivos aumenta a importância de nomes padronizados e catálogos.
+
+
+
+#### Dado, informação e metadado no SUS
+
+Considere o código `0418010048` isoladamente:
+
+- como **dado**, é apenas uma sequência de caracteres;
+- com o SIGTAP, torna-se a identificação de um procedimento;
+- associado à competência, ao estabelecimento e à quantidade aprovada, torna-se **informação**;
+- analisado no contexto assistencial e financeiro, pode apoiar **conhecimento e decisão**.
+
+Metadados descrevem como interpretar o registro:
+
+| Elemento      | Exemplo                             |
+|---------------|-------------------------------------|
+| Nome do campo | `PA_PROC_ID`                        |
+| Descrição     | Código do procedimento ambulatorial |
+| Tipo          | Caractere                           |
+| Tamanho       | 10 posições                         |
+| Domínio       | Procedimentos válidos no SIGTAP     |
+| Temporalidade | Competência informada em `PA_CMP`   |
+| Origem        | Arquivo PA do SIA                   |
+
+
+##### Identificação
+
+> url: <http://sigtap.datasus.gov.br/tabela-unificada/app/sec/procedimento/exibir/0418010048/08/2026>
+
+| Campo        | Valor                                                                                                                                                 |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Código       | `04.18.01.004-8`                                                                                                                                      |
+| Procedimento | Implante de cateter de longa permanência para hemodiálise                                                                                             |
+| Competência  | `08/2026`                                                                                                                                             |
+| Histórico    | [Consultar histórico de alterações](http://sigtap.datasus.gov.br/tabela-unificada/app/sec/procedimento/exibir/0418010048 "Histórico do procedimento") |
+
+
+##### Classificação do procedimento
+
+| Nível                | Código | Descrição                |
+|----------------------|-------:|--------------------------|
+| Grupo                |   `04` | Procedimentos cirúrgicos |
+| Subgrupo             |   `18` | Cirurgia em nefrologia   |
+| Forma de organização |   `01` | Acessos para diálise     |
+
+
+##### Características
+
+| Campo                     | Valor                                            |
+|---------------------------|--------------------------------------------------|
+| Modalidade de atendimento | Ambulatorial                                     |
+| Complexidade              | Alta complexidade                                |
+| Financiamento             | Fundo de Ações Estratégicas e Compensação — FAEC |
+| Subtipo de financiamento  | Nefrologia                                       |
+| Instrumento de registro   | APAC — procedimento principal                    |
+| Sexo                      | Ambos                                            |
+| Média de permanência      | —                                                |
+| Tempo de permanência      | —                                                |
+| Quantidade máxima         | `1`                                              |
+| Idade mínima              | `0` meses                                        |
+| Idade máxima              | `130` anos                                       |
+| Pontos                    | —                                                |
+
+
+##### Atributos complementares
+
+| Atributos complementares                                                  |
+|---------------------------------------------------------------------------|
+| Inclui o valor da anestesia                                               |
+| Exige CPF ou CNS                                                          |
+| Exige o registro de dados complementares na APAC                          |
+| Programa Mais Acesso a Especialistas — Componente Cirurgias Ambulatoriais |
+
+
+##### Valores
+
+| Componente             |          Valor |
+|------------------------|---------------:|
+| Serviço ambulatorial   |     R\$ 200,00 |
+| **Total ambulatorial** | **R\$ 200,00** |
+| Serviço hospitalar     |       R\$ 0,00 |
+| Serviço profissional   |       R\$ 0,00 |
+| **Total hospitalar**   |   **R\$ 0,00** |
+
+
+##### CID principal
+
+| CID-10 | Descrição                     |
+|--------|-------------------------------|
+| `N180` | Doença renal em estádio final |
+
+
+##### CIDs secundários
+
+| CID-10 | Descrição                                                                       |
+|--------|---------------------------------------------------------------------------------|
+| `E140` | Diabetes mellitus não especificado — com coma                                   |
+| `E141` | Diabetes mellitus não especificado — com cetoacidose                            |
+| `E142` | Diabetes mellitus não especificado — com complicações renais                    |
+| `E143` | Diabetes mellitus não especificado — com complicações oftálmicas                |
+| `E144` | Diabetes mellitus não especificado — com complicações neurológicas              |
+| `E145` | Diabetes mellitus não especificado — com complicações circulatórias periféricas |
+| `E146` | Diabetes mellitus não especificado — com outras complicações especificadas      |
+| `E147` | Diabetes mellitus não especificado — com complicações múltiplas                 |
+| `E148` | Diabetes mellitus não especificado — com complicações não especificadas         |
+| `E149` | Diabetes mellitus não especificado — sem complicações                           |
+| `I10`  | Hipertensão essencial (primária)                                                |
+| `N030` | Síndrome nefrítica crônica — anormalidade glomerular minor                      |
+| `N031` | Síndrome nefrítica crônica — lesões glomerulares focais e segmentares           |
+| `N032` | Síndrome nefrítica crônica — glomerulonefrite membranosa difusa                 |
+| `N033` | Síndrome nefrítica crônica — glomerulonefrite proliferativa mesangial difusa    |
+| `N034` | Síndrome nefrítica crônica — glomerulonefrite proliferativa endocapilar difusa  |
+| `N035` | Síndrome nefrítica crônica — glomerulonefrite mesangiocapilar difusa            |
+| `N036` | Síndrome nefrítica crônica — doença de depósito denso                           |
+| `N037` | Síndrome nefrítica crônica — glomerulonefrite difusa em crescente               |
+| `N038` | Síndrome nefrítica crônica — outras                                             |
+| `N039` | Síndrome nefrítica crônica — não especificada                                   |
+| `N188` | Outra insuficiência renal crônica                                               |
+| `N189` | Insuficiência renal crônica não especificada                                    |
+| `Q613` | Rim policístico não especificado                                                |
+| `T861` | Falência ou rejeição de transplante de rim                                      |
+
+
+##### Classificação Brasileira de Ocupações — CBO
+
+| CBO      | Ocupação                               |
+|----------|----------------------------------------|
+| `225109` | Médico nefrologista                    |
+| `225210` | Médico cirurgião cardiovascular        |
+| `225220` | Médico cirurgião do aparelho digestivo |
+| `225225` | Médico cirurgião geral                 |
+| `225230` | Médico cirurgião pediátrico            |
+
+
+##### Serviço e classificação
+
+| Serviço | Classificação | Descrição                                                                      |
+|--------:|--------------:|--------------------------------------------------------------------------------|
+|   `130` |         `003` | Confecção/intervenção de acessos para diálise — Atenção à Doença Renal Crônica |
+
+
+##### Habilitações
+
+| Código | Habilitação                                               |
+|--------|-----------------------------------------------------------|
+| `3802` | Agora Tem Especialistas — Modalidade 1                    |
+| `3805` | Agora Tem Especialistas — Componente Créditos Financeiros |
+| `3806` | Agora Tem Especialistas — Componente Ressarcimento ao SUS |
+
+
+##### Origem SIA/SIH
+
+| Modalidade   | Código de origem | Descrição                                                         |
+|--------------|------------------|-------------------------------------------------------------------|
+| Ambulatorial | `27011011`       | Acesso para hemodiálise: implante de cateter de longa permanência |
+
+
+##### Regras condicionadas
+
+| Código | Regra                                      |
+|--------|--------------------------------------------|
+| `0015` | Condiciona o tipo de financiamento em FAEC |
+| `0013` | Gera compensação financeira                |
+
+
+##### Relação Nacional de Ações e Serviços de Saúde — RENASES
+
+| Código | Ação ou serviço                                              |
+|--------|--------------------------------------------------------------|
+| `058`  | Cirurgias ambulatoriais com anestesia                        |
+| `061`  | Cirurgias ambulatoriais em nefrologia                        |
+| `143`  | Intervenções cirúrgicas para criação de acessos para diálise |
+
+
+
+#### Dicionários, layouts e domínios
+
+O exemplo concreto do SIGTAP mostra que um código isolado não é suficiente. Para interpretar um arquivo disseminado, três recursos devem ser usados em conjunto:
+
+| Recurso        | Pergunta respondida                            | Exemplo                                             |
+|----------------|------------------------------------------------|-----------------------------------------------------|
+| **Layout**     | Quais campos existem e como estão armazenados? | `PA_AUTORIZ` é um campo de 13 caracteres            |
+| **Dicionário** | O que significa cada campo?                    | `PA_CMP` é a competência de realização              |
+| **Domínio**    | Quais valores são permitidos?                  | códigos de financiamento ou instrumento de registro |
+
+Um dicionário analítico mínimo registra:
+
+| Elemento      | Exemplo no PA                       |
+|---------------|-------------------------------------|
+| Campo         | `PA_PROC_ID`                        |
+| Tipo          | caractere                           |
+| Tamanho       | 10 posições                         |
+| Descrição     | código do procedimento ambulatorial |
+| Domínio       | procedimento válido no SIGTAP       |
+| Temporalidade | competência registrada em `PA_CMP`  |
+| Fonte         | arquivo PA do SIA                   |
+
+
+##### Chaves e granularidade
+
+Uma coluna não é uma chave apenas porque contém um identificador. A chave depende da unidade de registro e das regras do sistema.
+
+| Fonte   | Possível identificador                                                        | Cuidado                                        |
+|---------|-------------------------------------------------------------------------------|------------------------------------------------|
+| SIA PA  | estabelecimento + competência + procedimento + autorização e outros atributos | pode haver várias linhas do mesmo procedimento |
+| SIA AM  | competência + autorização + procedimento                                      | uma APAC pode gerar várias linhas              |
+| SIH RD  | número da AIH                                                                 | reapresentações devem ser verificadas          |
+| SIH SP  | número da AIH + ato profissional                                              | vários atos podem pertencer à mesma AIH        |
+| CNES ST | CNES + competência                                                            | o cadastro varia no tempo                      |
+| SIGTAP  | procedimento + competência                                                    | atributos podem mudar mensalmente              |
+
+Antes de uma junção, confirme a granularidade da tabela acrescentada. Uma relação esperada como muitos-para-um pode multiplicar linhas quando a chave da tabela à direita não é única.
+
+
+##### Tipos dos campos
+
+Identificadores e competências devem permanecer como texto. Essa decisão preserva zeros à esquerda e evita operações matemáticas sem significado.
+
+| Campo        | Tipo analítico recomendado |
+|--------------|----------------------------|
+| `PA_CODUNI`  | caractere                  |
+| `PA_CMP`     | caractere                  |
+| `PA_PROC_ID` | caractere                  |
+| `PA_AUTORIZ` | caractere                  |
+| `PA_QTDAPR`  | numérico                   |
+| `PA_VALAPR`  | numérico                   |
+
+
+##### Temporalidade dos metadados
+
+SIGTAP, CNES e outros cadastros são dimensões temporais. Uma integração histórica deve combinar código e competência sempre que a descrição, o valor ou a regra puder mudar.
+
+``` text
+produção de 202409 + SIGTAP de 202409
+produção de 202410 + SIGTAP de 202410
+produção de 202411 + SIGTAP de 202411
+```
+
+Usar apenas o código pode atribuir a um registro histórico a classificação vigente em outro período.
+
+
+
+#### Dados de produção e dados analíticos
+
+Os arquivos disseminados resultam de processos operacionais. A tabela analítica é construída por uma sequência de transformações documentadas.
+
+| Etapa       | Produto                                                  |
+|-------------|----------------------------------------------------------|
+| Selecionar  | UF, competências e subsistemas definidos                 |
+| Extrair     | arquivos DBC obtidos do FTP                              |
+| Transformar | campos selecionados, tipificados e validados             |
+| Integrar    | produção relacionada a dicionários ou outros subsistemas |
+| Analisar    | indicadores coerentes com a unidade de registro          |
+
+A rastreabilidade deve ser criada durante a leitura, antes da concatenação. Cada linha conserva pelo menos:
+
+- nome do arquivo de origem;
+- competência do arquivo;
+- subsistema;
+- data ou versão da extração, quando aplicável.
+
+No fluxo prático desta aula, essas colunas serão acrescentadas aos objetos `pa` e `am` no momento em que cada DBC for lido. Assim, não será necessário repetir exemplos hipotéticos de rastreabilidade.
+
+------------------------------------------------------------------------
+
+
+
+### Fontes de dados abertos
+
+
+#### Ministério da Saúde
+
+No ecossistema analisado nesta aula, o Ministério da Saúde e a SEIDIGI/MS mantêm sistemas federais, nacionais, padrões, documentos técnicos e canais de disseminação.
+
+Os principais canais utilizados serão:
+
+- FTP de arquivos de disseminação;
+- Portal de Dados Abertos do SUS;
+- APIs públicas;
+- documentos de layout e dicionários de dados.
+
+
+#### Anvisa
+
+A Agência Nacional de Vigilância Sanitária atua na regulação sanitária de produtos e serviços. No campo econômico, a Câmara de Regulação do Mercado de Medicamentos - CMED estabelece critérios e limites regulatórios de preços de medicamentos.
+
+Essas informações podem apoiar:
+
+- comparação entre preço observado e teto regulatório;
+- análise de compras públicas;
+- estudos de acesso a medicamentos;
+- avaliação de impacto orçamentário.
+
+> Preço regulado, preço de compra, valor SIGTAP (MS) e custo do tratamento são conceitos diferentes.
+
+> repositório: <https://dados.anvisa.gov.br/dados/>
+
+
+#### ANS
+
+A Agência Nacional de Saúde Suplementar regula o setor de planos privados de assistência à saúde e disponibiliza bases sobre beneficiários, operadoras, produtos, utilização e informações econômico-financeiras.
+
+Esses dados permitem estudar:
+
+- cobertura da saúde suplementar;
+- concentração de mercado;
+- receitas, despesas e desempenho das operadoras;
+- utilização de serviços;
+- relações entre os setores público e suplementar.
+
+> inventário de dados abertos: <https://www.gov.br/ans/pt-br/acesso-a-informacao/perfil-do-setor/dados-abertos-1>. Tabulador: <https://www.ans.gov.br/anstabnet/>
+
+------------------------------------------------------------------------
+
+
+
+### Sistemas e centralizadores de informação
+
+
+#### Visão geral
+
+| Sistema ou fonte                                                                            | Conteúdo principal                                                                                     | Unidade típica de análise                                          | Uso em economia da saúde                                                                                 |
+|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| **Sistema de Informações Ambulatoriais do SUS (SIA)**                                       | Produção ambulatorial financiada pelo SUS                                                              | Procedimento, atendimento, BPA ou APAC                             | Quantidades apresentadas e aprovadas, valores ambulatoriais e perfil de utilização                       |
+| **Sistema de Informações Hospitalares do SUS (SIH)**                                        | Internações financiadas pelo SUS                                                                       | AIH, internação ou ato hospitalar                                  | Permanência, utilização de recursos, procedimentos e valores hospitalares                                |
+| **Sistema de Informações sobre Mortalidade (SIM)**                                          | Óbitos e causas de morte                                                                               | Declaração de óbito                                                | Mortalidade, sobrevida, carga de doença, anos de vida perdidos e desfechos                               |
+| **Sistema de Informação de Agravos de Notificação (SINAN)**                                 | Agravos e doenças de notificação compulsória                                                           | Notificação ou investigação                                        | Incidência, prevalência, vigilância e impacto econômico dos agravos                                      |
+| **Sistema de Informações sobre Nascidos Vivos (SINASC)**                                    | Nascidos vivos e características maternas e neonatais                                                  | Declaração de nascido vivo                                         | Saúde materno-infantil, planejamento, desfechos perinatais e denominadores populacionais                 |
+| **Cadastro Nacional de Estabelecimentos de Saúde (CNES)**                                   | Estabelecimentos, serviços, equipamentos, leitos, equipes e profissionais                              | Estabelecimento por competência                                    | Oferta, capacidade instalada, disponibilidade tecnológica e perfil dos prestadores                       |
+| **Sistema de Gerenciamento da Tabela de Procedimentos, Medicamentos e OPM do SUS (SIGTAP)** | Procedimentos, medicamentos e OPM do SUS, com atributos e regras de compatibilidade                    | Procedimento por competência                                       | Valores de referência, modalidade, complexidade, financiamento e compatibilidades                        |
+| **Comunicação de Informação Hospitalar e Ambulatorial (CIHA)**                              | Informações hospitalares e ambulatoriais não registradas no SIH em determinados segmentos              | Evento hospitalar ou ambulatorial                                  | Complementação da utilização assistencial e análise de atendimentos não representados pelo SIH           |
+| **Sistema de Informações sobre Orçamentos Públicos em Saúde (SIOPS)**                       | Receitas totais e despesas públicas em saúde declaradas pelos entes federativos                        | Ente federativo por período e classificação orçamentária           | Financiamento público, gasto em saúde, execução orçamentária e cumprimento dos mínimos constitucionais   |
+| **Banco de Preços em Saúde (BPS)**                                                          | Compras públicas e privadas de medicamentos e dispositivos médicos                                     | Item de compra, instituição e data da aquisição                    | Preços praticados, dispersão de preços, estimativas de custos e comparação entre compradores             |
+| **Fundo Nacional de Saúde (FNS)**                                                           | Transferências federais, convênios, propostas, instrumentos e pagamentos                               | Transferência, proposta, instrumento ou ordem bancária             | Fluxo de recursos federais, execução financeira e distribuição dos repasses                              |
+| **Plataforma InvestSUS (InvestSUS)**                                                        | Repasses, propostas, saldos e instrumentos acompanhados pelo Fundo Nacional de Saúde                   | Proposta, transferência, conta ou instrumento                      | Monitoramento de financiamento, investimento, empenho, pagamento e saldos                                |
+| **Sistema de Controle do Limite Financeiro da Média e Alta Complexidade (SISMAC)**          | Limites financeiros da média e alta complexidade e seus componentes                                    | Gestor ou ente federativo por competência e componente financeiro  | Análise do teto MAC, alterações de limites, alocação de recursos e comparação com a produção             |
+| **Sistema de Monitoramento de Obras (SISMOB)**                                              | Propostas, execução e monitoramento de obras financiadas pelo Ministério da Saúde                      | Obra, proposta ou estabelecimento                                  | Investimento em infraestrutura, execução física e financeira e expansão da capacidade instalada          |
+| **Câmara de Regulação do Mercado de Medicamentos (CMED)**                                   | Preços regulados de medicamentos, como PF, PMC e PMVG                                                  | Medicamento e apresentação por lista e alíquota                    | Valores máximos regulatórios, aplicação do CAP e referência para estimativas de custos                   |
+| **Relação Nacional de Medicamentos Essenciais (RENAME)**                                    | Medicamentos e insumos selecionados para utilização no SUS                                             | Medicamento, apresentação e componente da assistência farmacêutica | Definição do conjunto de tecnologias disponíveis, comparação de alternativas e planejamento farmacêutico |
+| **Componente Especializado da Assistência Farmacêutica (CEAF)**                             | Medicamentos especializados, critérios de acesso, autorização e dispensação                            | Solicitação, autorização ou dispensação                            | Utilização de medicamentos especializados, continuidade do tratamento e impacto orçamentário             |
+| **Sistema de Informações Ambulatoriais — APAC de Medicamentos (SIA/AM)**                    | Registros de APAC de medicamentos                                                                      | APAC, usuário, medicamento e competência                           | Quantidades autorizadas, utilização de medicamentos e acompanhamento da assistência farmacêutica         |
+| **Sistema de Informações Ambulatoriais — APAC de Quimioterapia (SIA/AQ)**                   | Registros de APAC relacionados à quimioterapia                                                         | APAC, usuário, procedimento oncológico e competência               | Utilização de tratamentos oncológicos, produção, valores aprovados e trajetórias assistenciais           |
+| **Agência Nacional de Saúde Suplementar (ANS)**                                             | Beneficiários, operadoras, planos, utilização e informações econômico-financeiras da saúde suplementar | Beneficiário, operadora, plano, evento ou período                  | Comparação entre saúde suplementar e SUS, despesas assistenciais, cobertura e utilização                 |
+| **Padrão de Troca de Informações na Saúde Suplementar (TISS)**                              | Troca padronizada de informações entre prestadores e operadoras da saúde suplementar                   | Guia, evento assistencial ou item de cobrança                      | Utilização, pagamentos, custos assistenciais e padrões de cobrança na saúde suplementar                  |
+| **Rede Nacional de Dados em Saúde (RNDS)**                                                  | Documentos clínicos e registros interoperáveis de saúde                                                | Documento clínico, evento ou indivíduo, conforme autorização       | Integração longitudinal de informações e análise de trajetórias assistenciais em ambientes autorizados   |
+| **Tabulador de Informações de Saúde (TabNet)**                                              | Tabulações agregadas de sistemas oficiais do SUS                                                       | Célula agregada segundo período, território e filtros              | Validação externa dos microdados, construção de indicadores e comparação de totais                       |
+| **Sala de Apoio à Gestão Estratégica (SAGE)**                                               | Indicadores, painéis e informações estratégicas do Ministério da Saúde                                 | Indicador por período, território ou programa                      | Monitoramento de políticas, contextualização dos resultados e validação com dados consolidados           |
+| **Comissão Nacional de Incorporação de Tecnologias no Sistema Único de Saúde (Conitec)**    | Recomendações sobre incorporação, exclusão ou alteração de tecnologias no SUS                          | Tecnologia, indicação ou recomendação                              | Evidências de eficácia, segurança, custo-efetividade e impacto orçamentário                              |
+| **Protocolos Clínicos e Diretrizes Terapêuticas (PCDT)**                                    | Critérios diagnósticos, tratamentos, acompanhamento e regras de acesso                                 | Condição clínica, população ou tecnologia                          | Definição do comparador, população elegível, recursos utilizados e padrão assistencial                   |
+| **Rede Brasileira de Avaliação de Tecnologias em Saúde (Rebrats)**                          | Estudos, métodos e instituições de Avaliação de Tecnologias em Saúde                                   | Estudo, relatório ou tecnologia avaliada                           | Evidências econômicas, avaliações de custo-efetividade e apoio metodológico                              |
+| **Portal de Dados Abertos do Sistema Único de Saúde (Portal de Dados Abertos do SUS)**      | Conjuntos e recursos publicados por diferentes áreas do Ministério da Saúde                            | Conjunto, recurso ou registro, conforme a base                     | Descoberta de fontes complementares, integração de dados e reprodução de análises                        |
+
+> A unidade de análise varia conforme o arquivo, o subsistema e a forma de disseminação. Sistemas de produção, como SIA e SIH, disponibilizam registros assistenciais; sistemas financeiros, como SIOPS, SISMAC e InvestSUS, representam orçamento, limites ou transferências; fontes como TabNet e SAGE apresentam dados previamente agregados.
+
+> Valores do SIA, SIH e SIGTAP não devem ser interpretados automaticamente como custos econômicos reais. O BPS representa preços informados em compras, enquanto as listas da CMED apresentam limites regulatórios. SIOPS, FNS, InvestSUS, SISMAC e SISMOB representam dimensões distintas do financiamento e da execução dos recursos públicos.
+
+
+#### Fluxo da produção ambulatorial e hospitalar
+
+A produção assistencial do SUS é registrada por diferentes instrumentos. A escolha depende da modalidade de atendimento, da necessidade de identificação do usuário e da exigência de autorização prévia.
+
+| Instrumento                                                  | Sistema                                               | Característica principal                                                                               |
+|--------------------------------------------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| **Boletim de Produção Ambulatorial Consolidado (BPA-C)**     | **Sistema de Informações Ambulatoriais do SUS (SIA)** | Registra a produção ambulatorial de forma consolidada, sem identificação individual do usuário         |
+| **Boletim de Produção Ambulatorial Individualizado (BPA-I)** | **Sistema de Informações Ambulatoriais do SUS (SIA)** | Registra a produção ambulatorial individualizada, com informações do usuário e do atendimento          |
+| **Autorização de Procedimentos Ambulatoriais (APAC)**        | **Sistema de Informações Ambulatoriais do SUS (SIA)** | Registra procedimentos ambulatoriais que exigem autorização, identificação do usuário e acompanhamento |
+| **Autorização de Internação Hospitalar (AIH)**               | **Sistema de Informações Hospitalares do SUS (SIH)**  | Registra internações hospitalares autorizadas e financiadas pelo SUS                                   |
+
+
+##### Arquivo SIA PA - produção ambulatorial
+
+O Sistema de Informações Ambulatoriais recebe e processa a produção ambulatorial. Os registros podem resultar de diferentes instrumentos, como BPA e APAC.
+
+O arquivo, cuja nomenclatura padrão é `PAUFAAMM.dbc`, consolida procedimentos ambulatoriais. Seu preenchimento varia conforme o instrumento identificado em `PA_DOCORIG`.
+
+Campos particularmente úteis:
+
+| Campo        | Conteúdo                                         |
+|--------------|--------------------------------------------------|
+| `PA_CODUNI`  | Código CNES do estabelecimento                   |
+| `PA_GESTAO`  | Município gestor ou indicação de gestão estadual |
+| `PA_CMP`     | Competência de realização                        |
+| `PA_PROC_ID` | Procedimento ambulatorial                        |
+| `PA_DOCORIG` | Instrumento de registro                          |
+| `PA_QTDAPR`  | Quantidade aprovada                              |
+| `PA_VALAPR`  | Valor aprovado                                   |
+| `PA_TPFIN`   | Tipo de financiamento                            |
+| `PA_SUBFIN`  | Subtipo de financiamento                         |
+
+> A linha do PA não representa sempre uma pessoa. Dependendo do instrumento, pode representar produção consolidada, atendimento individualizado ou procedimento de uma APAC.
+
+
+##### BPA-C
+
+O **Boletim de Produção Ambulatorial Consolidado (BPA-C)** registra quantidades agregadas de procedimentos.
+
+Uma linha geralmente representa a produção consolidada segundo combinações como:
+
+- estabelecimento;
+- competência;
+- procedimento;
+- CBO;
+- características administrativas.
+
+O BPA-C não identifica individualmente cada usuário. Por isso, é adequado para analisar quantidade produzida, mas não para acompanhar trajetórias individuais.
+
+
+##### BPA-I
+
+O **Boletim de Produção Ambulatorial Individualizado (BPA-I)** registra procedimentos com informações individualizadas do atendimento.
+
+Pode incluir:
+
+- estabelecimento;
+- usuário;
+- procedimento;
+- profissional;
+- CBO;
+- data do atendimento;
+- município de residência;
+- diagnóstico, quando exigido;
+- quantidade apresentada.
+
+> Individualização não significa necessariamente autorização prévia. O instrumento de registro e as regras do procedimento devem ser consultados no SIGTAP.
+
+
+##### APAC
+
+A **Autorização de Procedimentos Ambulatoriais de Alta Complexidade/Custo (APAC)** é utilizada em linhas de cuidado ou procedimentos que exigem autorização, acompanhamento e registro individualizado.
+
+O fluxo simplificado é:
+
+> Solicitação → avaliação técnica → autorização → realização → apresentação da produção → processamento no SIA
+
+A APAC é utilizada, entre outras áreas, em:
+
+- medicamentos do Componente Especializado da Assistência Farmacêutica;
+- quimioterapia;
+- radioterapia;
+- terapia renal substitutiva;
+- atenção domiciliar;
+- outros tratamentos continuados ou especializados.
+
+Uma APAC pode gerar vários registros no arquivo PA:
+
+- `P`: procedimento principal;
+- `S`: procedimento secundário.
+
+
+##### AIH
+
+A **Autorização de Internação Hospitalar (AIH)** é utilizada para registrar e processar internações financiadas pelo SUS.
+
+O fluxo simplificado é:
+
+> Indicação de internação → solicitação → autorização → internação → alta ou encerramento → processamento no SIH
+
+A AIH reúne informações como:
+
+- estabelecimento;
+- usuário;
+- diagnóstico;
+- procedimento solicitado;
+- procedimento realizado;
+- datas de internação e saída;
+- permanência;
+- utilização de UTI;
+- valores hospitalares e profissionais;
+- motivo de saída;
+- ocorrência de óbito.
+
+
+
+#### Relação entre os instrumentos e os arquivos disseminados
+
+| Instrumento | Arquivo de disseminação     | Unidade aproximada                     |
+|-------------|-----------------------------|----------------------------------------|
+| BPA-C       | SIA PA                      | Produção consolidada                   |
+| BPA-I       | SIA PA e BI                 | Atendimento individualizado            |
+| APAC        | SIA PA e arquivos temáticos | Autorização e procedimentos associados |
+| AIH         | SIH RD e SP                 | Internação e atos profissionais        |
+
+> O arquivo PA reúne registros originados por instrumentos diferentes. Antes de contar atendimentos ou usuários, verifique `PA_DOCORIG` e a unidade de registro.
+
+Fonte: [Informe Técnico do SIA](https://www.gov.br/saude/pt-br/composicao/saes/samu-192/sistemas/sistema-de-informacoes-ambulatoriais-sia-sus).
+
+
+#### Regulação do acesso a medicamentos do CEAF
+
+O **Componente Especializado da Assistência Farmacêutica (CEAF)** é uma estratégia de acesso ambulatorial a medicamentos cujas linhas de cuidado são definidas em Protocolos Clínicos e Diretrizes Terapêuticas (PCDT).
+
+> SIGTAP Grupo 06.04 - Medicamentos do CEAF
+
+O fluxo geral é:
+
+> Prescrição → solicitação → avaliação documental e clínica → autorização → dispensação → renovação e acompanhamento
+
+
+##### Prescrição
+
+O profissional prescreve o medicamento e preenche os documentos exigidos, incluindo:
+
+- Laudo para Solicitação, Avaliação e Autorização de Medicamentos — LME;
+- prescrição;
+- exames;
+- documentos previstos no PCDT;
+- identificação do usuário.
+
+
+##### Solicitação
+
+O usuário ou responsável apresenta a documentação à unidade responsável definida pela Secretaria Estadual de Saúde ou do Distrito Federal.
+
+
+##### Avaliação e autorização
+
+A solicitação é avaliada segundo:
+
+- diagnóstico;
+- critérios de inclusão;
+- critérios de exclusão;
+- tratamento prévio;
+- exames obrigatórios;
+- dose;
+- duração;
+- regras do PCDT.
+
+
+##### Dispensação
+
+Após o deferimento, o medicamento é fornecido pela unidade responsável. A continuidade pode exigir renovação, exames e reavaliação.
+
+> As Secretarias Estaduais de Saúde e do Distrito Federal são responsáveis pela avaliação das solicitações e pela dispensação no CEAF.
+
+> veja a lista de [PCDT](https://www.gov.br/conitec/pt-br/assuntos/avaliacao-de-tecnologias-em-saude/protocolos-clinicos-e-diretrizes-terapeuticas/pcdt). Saiba mais sobre o [Componente Especializado da Assistência Farmacêutica (CEAF)](https://www.gov.br/saude/pt-br/composicao/sectics/daf/ceaf).
+
+
+##### Arquivo SIA AM — APAC de medicamentos
+
+O arquivo `AMUFAAMM.dbc` contém registros processados de APAC de medicamentos.
+
+Exemplo:
+
+``` text
+AMAC2501.dbc
+```
+
+Interpretação:
+
+| Parte  | Significado            |
+|--------|------------------------|
+| `AM`   | APAC de medicamentos   |
+| `AC`   | Acre                   |
+| `25`   | Ano de 2025            |
+| `01`   | Janeiro                |
+| `.dbc` | Arquivo DBF comprimido |
+
+O arquivo pode apoiar análises sobre:
+
+- usuários autorizados;
+- procedimentos de medicamentos;
+- diagnóstico;
+- estabelecimento;
+- município;
+- quantidade;
+- competência;
+- continuidade do tratamento.
+
+Exemplo de download:
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/AMAC2501.dbc"
+)
+
+curl::curl_download(url, "AMAC2501.dbc")
+am <- read.dbc::read.dbc("AMAC2501.dbc")
+```
+
+
+Exploração mínima:
+
+
+``` sourceCode
+dim(am)
+names(am)
+head(am, 3)
+```
+
+
+> O arquivo AM registra APAC processada no SIA. Ele não comprova isoladamente adesão ao tratamento, consumo pelo paciente ou resultado clínico.
+
+
+
+#### Regulação do tratamento oncológico e arquivo SIA AQ
+
+A assistência oncológica é organizada em estabelecimentos habilitados e envolve diagnóstico, estadiamento, definição terapêutica, autorização e registro da produção.
+
+A APAC é utilizada para registrar procedimentos ambulatoriais de tratamento, incluindo quimioterapia.
+
+O arquivo `AQUFAAMM.dbc` contém registros de APAC de quimioterapia.
+
+Exemplo:
+
+``` text
+AQAC2501.dbc
+```
+
+Campos e informações podem permitir análises sobre:
+
+- estabelecimento;
+- usuário;
+- diagnóstico;
+- tipo de tumor;
+- procedimento;
+- esquema ou finalidade terapêutica;
+- competência;
+- continuidade do tratamento;
+- quantidade apresentada ou aprovada.
+
+Exemplo de download:
+
+
+``` sourceCode
+url <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/AQAC2501.dbc"
+)
+
+curl::curl_download(url, "AQAC2501.dbc")
+aq <- read.dbc::read.dbc("AQAC2501.dbc")
+```
+
+
+Exploração mínima:
+
+
+``` sourceCode
+dim(aq)
+names(aq)
+head(aq, 3)
+```
+
+
+##### Particularidade do financiamento oncológico
+
+No tratamento oncológico, a APAC registra procedimentos terapêuticos. O financiamento não deve ser interpretado automaticamente como reembolso de cada medicamento utilizado.
+
+O estabelecimento habilitado organiza o tratamento conforme:
+
+- condição clínica;
+- estadiamento;
+- diretrizes diagnósticas e terapêuticas;
+- estrutura disponível;
+- procedimentos autorizados;
+- regras de financiamento do SUS.
+
+> O procedimento registrado, o medicamento utilizado, o valor aprovado e o custo real do tratamento são dimensões diferentes.
+
+Fonte: [Legislação da Assistência Farmacêutica em Oncologia](https://www.gov.br/saude/pt-br/composicao/sectics/daf/af-onco/legislacao).
+
+
+
+#### PCDT, Conitec, ATS e Rebrats
+
+Os **Protocolos Clínicos e Diretrizes Terapêuticas (PCDT)** estabelecem critérios para diagnóstico, tratamento e acompanhamento de condições clínicas no SUS.
+
+Podem definir:
+
+- critérios de inclusão e exclusão;
+- exames necessários;
+- alternativas terapêuticas;
+- doses e esquemas;
+- mecanismos de monitoramento;
+- critérios de interrupção;
+- responsabilidades dos gestores.
+
+
+##### Conitec
+
+A **Comissão Nacional de Incorporação de Tecnologias no SUS (Conitec)** assessora o Ministério da Saúde em processos relacionados a:
+
+- incorporação;
+- exclusão;
+- alteração de tecnologias;
+- elaboração ou atualização de PCDT.
+
+A decisão considera elementos como:
+
+- eficácia;
+- efetividade;
+- segurança;
+- avaliação econômica;
+- impacto orçamentário;
+- relevância para o SUS;
+- participação social.
+
+> A Conitec avalia e recomenda. A decisão e a publicação dos PCDT são formalizadas pelo Ministério da Saúde.
+
+
+##### Avaliação de Tecnologias em Saúde
+
+A **Avaliação de Tecnologias em Saúde (ATS)** examina consequências clínicas, econômicas, sociais, organizacionais e éticas do uso de tecnologias.
+
+Tecnologia em saúde pode incluir:
+
+- medicamentos;
+- equipamentos;
+- procedimentos;
+- testes diagnósticos;
+- sistemas;
+- modelos de cuidado.
+
+Em economia da saúde, a ATS pode utilizar:
+
+- custo-efetividade;
+- custo-utilidade;
+- custo-benefício;
+- impacto orçamentário;
+- análise de incerteza;
+- avaliação de equidade.
+
+
+##### Rebrats
+
+A **Rede Brasileira de Avaliação de Tecnologias em Saúde (Rebrats)** articula instituições e núcleos que produzem e disseminam estudos de ATS para apoiar decisões no SUS.
+
+A Rebrats contribui por meio de:
+
+- pareceres técnico-científicos;
+- revisões sistemáticas;
+- avaliações econômicas;
+- análises de impacto orçamentário;
+- formação de profissionais;
+- desenvolvimento de métodos;
+- cooperação entre instituições.
+
+
+##### Relação com os dados do SIA e SIH
+
+| Componente | Papel                                                   |
+|------------|---------------------------------------------------------|
+| Conitec    | Avaliação e recomendação sobre tecnologias e protocolos |
+| PCDT       | Definição de critérios clínicos e terapêuticos          |
+| SIGTAP     | Regras administrativas e atributos dos procedimentos    |
+| SIA/SIH    | Registro da produção processada                         |
+| SIA AM     | Registros de APAC de medicamentos                       |
+| SIA AQ     | Registros de APAC de quimioterapia                      |
+| Rebrats    | Produção e disseminação de estudos de ATS               |
+
+Os dados administrativos podem apoiar ATS e monitoramento pós-incorporação, mas possuem limitações:
+
+- não registram todos os desfechos clínicos;
+- valores aprovados não equivalem necessariamente a custos;
+- podem existir mudanças de codificação;
+- a cobertura depende da qualidade do registro;
+- comparações históricas exigem compatibilidade temporal com PCDT e SIGTAP.
+
+Fontes:
+
+- [Conitec](https://www.gov.br/conitec/pt-br)
+- [Rebrats](https://rebrats.saude.gov.br/quem-somos)
+
+
+
+#### SIH: internações hospitalares
+
+O Sistema de Informações Hospitalares dissemina dados das Autorizações de Internação Hospitalar - AIH.
+
+
+##### Arquivo RD - Reduzido de AIH
+
+O arquivo `RDUFAAMM.dbc` contém dados reduzidos das AIH.
+
+| Campo        | Conteúdo                         |
+|--------------|----------------------------------|
+| `N_AIH`      | Número da AIH                    |
+| `CNES`       | Estabelecimento hospitalar       |
+| `PROC_REA`   | Procedimento principal realizado |
+| `QT_DIARIAS` | Quantidade de diárias            |
+| `DIAS_PERM`  | Dias de permanência              |
+| `VAL_SH`     | Valor dos serviços hospitalares  |
+| `VAL_SP`     | Valor dos serviços profissionais |
+| `VAL_TOT`    | Valor total da AIH               |
+| `DIAG_PRINC` | Diagnóstico principal            |
+| `MORTE`      | Indicador de óbito               |
+| `MUNIC_RES`  | Município de residência          |
+| `MUNIC_MOV`  | Município do estabelecimento     |
+
+
+##### Arquivo SP - Atos profissionais
+
+O arquivo `SPUFAAMM.dbc` detalha atos profissionais associados à internação. Ele possui maior granularidade que o RD e pode conter várias linhas para uma AIH.
+
+> O **PA pertence ao SIA** e o **RD pertence ao SIH**. Ambos são mensais e podem ser articulados com CNES e SIGTAP, mas possuem unidades de registro diferentes.
+
+
+
+#### Regulação do acesso e registros do SIA e SIH
+
+A regulação do acesso organiza a entrada dos usuários nos serviços segundo:
+
+- necessidade clínica;
+- risco;
+- disponibilidade da oferta;
+- referências territoriais;
+- protocolos;
+- prioridades;
+- pactuações entre gestores.
+
+Sistemas como SISREG e e-SUS Regulação podem registrar:
+
+- solicitações;
+- filas;
+- classificação de risco;
+- agendamentos;
+- encaminhamentos;
+- autorizações;
+- disponibilidade de vagas.
+
+O SIA e o SIH possuem outra função principal: registrar, processar e disseminar a produção ambulatorial e hospitalar apresentada pelos gestores.
+
+| Etapa                    | Sistema ou instrumento associado             |
+|--------------------------|----------------------------------------------|
+| Solicitação de acesso    | Sistema local, SISREG ou e-SUS Regulação     |
+| Avaliação e priorização  | Central de regulação                         |
+| Autorização ambulatorial | APAC ou autorização do BPA-I, quando exigida |
+| Autorização hospitalar   | AIH                                          |
+| Registro da produção     | SIA ou SIH                                   |
+| Processamento e controle | Gestor e sistemas nacionais                  |
+| Disseminação             | Arquivos públicos do SIA e SIH               |
+
+O SIA e o SIH podem apoiar análises de acesso por meio de:
+
+- município de residência;
+- município de atendimento;
+- estabelecimento;
+- procedimento;
+- competência;
+- quantidade aprovada;
+- internação;
+- permanência;
+- deslocamento entre territórios.
+
+Entretanto, essas bases geralmente não apresentam toda a demanda reprimida.
+
+> A ausência de produção pode significar ausência de demanda, falta de oferta, barreira de acesso, não autorização, não realização ou falha de registro.
+
+Para estudar acesso de forma mais completa, combine:
+
+- filas reguladas;
+- solicitações;
+- oferta do CNES;
+- produção do SIA e SIH;
+- população;
+- tempos de espera;
+- pactuações regionais.
+
+Fonte: [Sistemas de Informação na Regulação do Acesso](https://www.gov.br/saude/pt-br/composicao/saes/drac/regulacao-do-acesso/sistemas-de-informacao).
+
+
+#### SIM, SINAN e SINASC
+
+- **SIM:** permite analisar causas básicas e associadas de morte, local de residência, características demográficas e circunstâncias do óbito.
+- **SINAN:** organiza notificações e investigações de agravos; seus subsistemas variam conforme a doença ou agravo.
+- **SINASC:** reúne informações da Declaração de Nascido Vivo, incluindo características maternas, gestação, parto e recém-nascido.
+
+Essas fontes não medem custos diretamente, mas ajudam a definir necessidades, desfechos, carga de doença e populações de referência.
+
+
+#### CNES
+
+O Cadastro Nacional de Estabelecimentos de Saúde descreve a oferta e a estrutura dos serviços.
+
+Subsistemas frequentes:
+
+| Sigla | Conteúdo                |
+|-------|-------------------------|
+| `ST`  | Estabelecimentos        |
+| `DC`  | Dados complementares    |
+| `PF`  | Profissionais           |
+| `LT`  | Leitos                  |
+| `EQ`  | Equipamentos            |
+| `SR`  | Serviços especializados |
+| `EP`  | Equipes                 |
+| `HB`  | Habilitações            |
+| `GM`  | Gestão e metas          |
+
+O CNES permite contextualizar a produção segundo estabelecimento, município, gestão, natureza e capacidade instalada.
+
+
+#### SIGTAP
+
+O SIGTAP organiza a Tabela de Procedimentos, Medicamentos e OPM do SUS. Além do código e do nome, registra atributos e compatibilidades que variam por competência.
+
+Pode conter relações com:
+
+- grupo, subgrupo e forma de organização;
+- modalidade de atendimento;
+- instrumento de registro;
+- financiamento;
+- CBO;
+- CID;
+- serviço e classificação;
+- idade e sexo;
+- valores de referência.
+
+> Um procedimento deve ser interpretado usando o SIGTAP da competência correspondente. A tabela pode mudar ao longo do tempo.
+
+
+##### Estrutura hierárquica do SIGTAP
+
+O Sistema de Gerenciamento da Tabela de Procedimentos, Medicamentos e OPM do SUS — SIGTAP — organiza os procedimentos em níveis hierárquicos.
+
+``` text
+Grupo
+└── Subgrupo
+    └── Forma de organização
+        └── Procedimento
+```
+
+O código do procedimento pode ser interpretado como:
+
+``` text
+GG.SS.FF.PPP-D
+```
+
+| Parte | Significado                |
+|-------|----------------------------|
+| `GG`  | Grupo                      |
+| `SS`  | Subgrupo                   |
+| `FF`  | Forma de organização       |
+| `PPP` | Sequencial do procedimento |
+| `D`   | Dígito verificador         |
+
+Exemplo:
+
+``` text
+04.18.01.004-8
+```
+
+| Nível                | Código       | Descrição                                                 |
+|----------------------|--------------|-----------------------------------------------------------|
+| Grupo                | `04`         | Procedimentos cirúrgicos                                  |
+| Subgrupo             | `0418`       | Cirurgia em nefrologia                                    |
+| Forma de organização | `041801`     | Acessos para diálise                                      |
+| Procedimento         | `0418010048` | Implante de cateter de longa permanência para hemodiálise |
+
+> No SIGTAP, o termo correto é **forma de organização**. A forma de apresentação ou registro da produção é representada por outro atributo, denominado **instrumento de registro**, como BPA-C, BPA-I, APAC e AIH.
+
+
+##### Grupos do SIGTAP
+
+<table style="width:98%;">
+<colgroup>
+<col style="width: 0%" />
+<col style="width: 9%" />
+<col style="width: 41%" />
+<col style="width: 48%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Grupo</th>
+<th>Descrição</th>
+<th>Exemplos de subgrupos</th>
+<th>Exemplos de formas de organização</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>01</code></td>
+<td>Ações de promoção e prevenção em saúde</td>
+<td><code>0101</code> Ações coletivas e individuais em saúde;<br />
+<code>0102</code> Vigilância em saúde</td>
+<td><code>010101</code> Educação em saúde;<br />
+<code>010102</code> Saúde bucal;<br />
+<code>010201</code> Vigilância sanitária</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>02</code></td>
+<td>Procedimentos com finalidade diagnóstica</td>
+<td><code>0201</code> Coleta de material;<br />
+<code>0202</code> Diagnóstico em laboratório clínico;<br />
+<code>0204</code> Diagnóstico por radiologia;<br />
+<code>0206</code> Diagnóstico por tomografia</td>
+<td><code>020101</code> Coleta de material por punção ou biópsia;<br />
+<code>020201</code> Exames bioquímicos;<br />
+<code>020401</code> Exames radiológicos da cabeça e pescoço</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>03</code></td>
+<td>Procedimentos clínicos</td>
+<td><code>0301</code> Consultas, atendimentos e acompanhamentos;<br />
+<code>0304</code> Tratamento em oncologia;<br />
+<code>0305</code> Tratamento em nefrologia;<br />
+<code>0309</code> Terapias especializadas</td>
+<td><code>030101</code> Consultas médicas e de outros profissionais de nível superior;<br />
+<code>030108</code> Atendimento e acompanhamento psicossocial;<br />
+<code>030114</code> Cuidados paliativos</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>04</code></td>
+<td>Procedimentos cirúrgicos</td>
+<td><code>0401</code> Pequenas cirurgias e cirurgias de pele, tecido subcutâneo e mucosa;<br />
+<code>0406</code> Cirurgia do aparelho circulatório;<br />
+<code>0416</code> Cirurgia em oncologia;<br />
+<code>0418</code> Cirurgia em nefrologia</td>
+<td><code>041801</code> Acessos para diálise;<br />
+formas específicas de cirurgia conforme órgão, sistema ou especialidade</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>05</code></td>
+<td>Transplantes de órgãos, tecidos e células</td>
+<td><code>0501</code> Coleta e exames para doação e transplante;<br />
+<code>0502</code> Avaliação de morte encefálica;<br />
+<code>0505</code> Transplante de órgãos, tecidos e células;<br />
+<code>0506</code> Acompanhamento pré e pós-transplante</td>
+<td>Formas de organização relacionadas à doação, avaliação, processamento, transplante e acompanhamento</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>06</code></td>
+<td>Medicamentos</td>
+<td><code>0601</code> Medicamentos de dispensação excepcional;<br />
+<code>0602</code> Medicamentos estratégicos;<br />
+<code>0603</code> Medicamentos de âmbito hospitalar e de urgência;<br />
+<code>0604</code> Componente Especializado da Assistência Farmacêutica</td>
+<td>Formas organizadas por classe farmacológica ou finalidade terapêutica, como agentes antitrombóticos e medicamentos do sistema respiratório</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>07</code></td>
+<td>Órteses, próteses e materiais especiais</td>
+<td><code>0701</code> OPM não relacionadas ao ato cirúrgico;<br />
+<code>0702</code> OPM relacionadas ao ato cirúrgico</td>
+<td><code>070101</code> OPM auxiliares da locomoção;<br />
+<code>070103</code> OPM auditivas;<br />
+<code>070204</code> OPM em assistência cardiovascular;<br />
+<code>070210</code> OPM em nefrologia</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>08</code></td>
+<td>Ações complementares da atenção à saúde</td>
+<td><code>0801</code> Ações relacionadas ao estabelecimento;<br />
+<code>0802</code> Ações relacionadas ao atendimento;<br />
+<code>0803</code> Autorização e regulação;<br />
+<code>0804</code> Telessaúde</td>
+<td><code>080101</code> Incentivos;<br />
+<code>080201</code> Diárias;<br />
+<code>080301</code> Deslocamento e ajuda de custo;<br />
+<code>080402</code> Atendimento em saúde mediado por tecnologia digital</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>09</code></td>
+<td>Procedimentos para Ofertas de Cuidados Integrados</td>
+<td><code>0901</code> Atenção em oncologia;<br />
+<code>0902</code> Atenção em cardiologia;<br />
+<code>0903</code> Atenção em ortopedia;<br />
+<code>0904</code> Atenção em otorrinolaringologia;<br />
+<code>0905</code> Atenção em oftalmologia;<br />
+<code>0906</code> Atenção em saúde da mulher</td>
+<td><code>090101</code> Ofertas de Cuidados Integrados em oncologia;<br />
+<code>090201</code> Ofertas de Cuidados Integrados em cardiologia;<br />
+<code>090301</code> Ofertas de Cuidados Integrados em ortopedia;<br />
+<code>090601</code> Ofertas de Cuidados Integrados em saúde da mulher — ginecologia</td>
+</tr>
+</tbody>
+</table>
+
+> Os exemplos refletem a estrutura disponível na competência `08/2026`. Grupos, subgrupos, formas de organização e procedimentos são atributos temporais e devem ser relacionados à competência correspondente.
+
+> A análise econômica deve integrar essas dimensões sem tratar valor SIGTAP, valor aprovado, crédito contratual, transferência e despesa executada como conceitos equivalentes.
+
+> Fonte: [SIGTAP — Sistema de Gerenciamento da Tabela de Procedimentos, Medicamentos e OPM do SUS](https://sigtap.datasus.gov.br/tabela-unificada/app/sec/inicio.jsp).
+
+> Documentação técnica: [Especificação Técnica para Integração com o SIGTAP](https://datasus.saude.gov.br/wp-content/uploads/2019/12/Especificacao-Tecnica-para-Integracao-com-o-SIGTAP.pdf).
+
+
+##### Complexidade
+
+A complexidade é um atributo do procedimento no SIGTAP. Ela não deve ser inferida apenas pelo estabelecimento, pelo valor ou pelo instrumento de registro.
+
+| Valor do domínio | Complexidade       |
+|-----------------:|--------------------|
+|              `1` | Atenção Básica     |
+|              `2` | Média complexidade |
+|              `3` | Alta complexidade  |
+|              `4` | Não se aplica      |
+
+> A complexidade do procedimento pode mudar entre competências. A análise histórica deve utilizar a classificação vigente no mês da produção.
+
+
+##### Financiamento
+
+O tipo de financiamento identifica a forma geral de financiamento associada ao procedimento na competência consultada.
+
+| Código SIGTAP | Tipo de financiamento                            |
+|--------------:|--------------------------------------------------|
+|          `01` | Atenção Básica — PAB                             |
+|          `02` | Assistência Farmacêutica                         |
+|          `04` | Fundo de Ações Estratégicas e Compensação — FAEC |
+|          `05` | Incentivo — MAC                                  |
+|          `06` | Média e Alta Complexidade — MAC                  |
+|          `07` | Vigilância em Saúde                              |
+|          `08` | Gestão em Saúde                                  |
+
+> Os códigos não são necessariamente sequenciais. A ausência do código `03` não deve ser corrigida ou recodificada durante a importação.
+
+
+###### Interpretação econômica
+
+| Financiamento                                               | Interpretação geral                                                                                                                      | Forma predominante de financiamento                                                                                             | Cuidados na análise                                                                                                                                                               |
+|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Piso da Atenção Básica (PAB)**                            | Denominação histórica relacionada ao financiamento das ações e dos procedimentos da atenção primária à saúde                             | Transferências vinculadas ao custeio da atenção básica, conforme as regras vigentes em cada competência                         | Não representa necessariamente pagamento por procedimento. A classificação deve ser interpretada conforme a competência e a norma de financiamento vigente                        |
+| **Assistência Farmacêutica**                                | Financiamento de medicamentos, insumos e ações dos componentes da assistência farmacêutica                                               | Transferências e aquisições organizadas conforme os componentes Básico, Estratégico e Especializado da Assistência Farmacêutica | O valor registrado no procedimento não comprova o custo de aquisição, dispensação ou transferência financeira                                                                     |
+| **Fundo de Ações Estratégicas e Compensação (FAEC)**        | Financiamento de ações estratégicas, procedimentos específicos e novas incorporações, conforme definição do Ministério da Saúde          | Transferência geralmente condicionada à produção aprovada e informada nos sistemas SIA e SIH                                    | É necessário verificar produção apresentada, aprovada e paga, além das regras, limites e portarias vigentes                                                                       |
+| **Incentivo — Média e Alta Complexidade (Incentivo — MAC)** | Recursos vinculados a políticas, redes, habilitações, qualificações ou serviços específicos de média e alta complexidade                 | Custeio fixo, complementar ou condicionado ao atendimento dos critérios definidos em portaria                                   | Não corresponde necessariamente à quantidade produzida multiplicada pelo valor do SIGTAP; pode depender de habilitação, adesão ou manutenção do serviço                           |
+| **Média e Alta Complexidade (MAC)**                         | Financiamento regular de ações e serviços ambulatoriais e hospitalares especializados                                                    | Transferência regular dentro do limite financeiro MAC dos estados, do Distrito Federal e dos municípios                         | A produção registrada no SIA e no SIH subsidia programação e controle, mas o valor do SIGTAP não representa necessariamente o valor efetivamente transferido ou pago ao prestador |
+| **Vigilância em Saúde**                                     | Financiamento de ações de vigilância epidemiológica, sanitária, ambiental e de saúde do trabalhador                                      | Transferências e incentivos associados à execução de ações, programas e estratégias de vigilância                               | Os resultados não devem ser avaliados somente por produção; devem ser considerados cobertura, oportunidade, completude e indicadores epidemiológicos                              |
+| **Gestão em Saúde**                                         | Financiamento de ações de planejamento, regulação, controle, avaliação, auditoria, participação social e fortalecimento da gestão do SUS | Transferências ou incentivos vinculados a políticas e ações de organização da gestão                                            | Em geral, não existe correspondência direta entre o recurso transferido e um procedimento assistencial individualizado                                                            |
+
+> A classificação de financiamento registrada no SIGTAP informa a vinculação geral do procedimento, mas não comprova isoladamente o pagamento ao estabelecimento ou a transferência ao gestor. Para análises financeiras, deve ser integrada aos dados do Fundo Nacional de Saúde (FNS), InvestSUS, SISMAC, SIOPS, SIA, SIH e às portarias vigentes na respectiva competência.
+
+O **Piso da Atenção Básica (PAB)** é uma denominação histórica do financiamento federal destinado à manutenção das ações de atenção primária à saúde. Tradicionalmente, era composto por uma parcela fixa, calculada segundo critérios populacionais, e por componentes variáveis associados à implantação de equipes, programas e estratégias prioritárias. Embora o modelo federal de financiamento da atenção primária tenha sido reformulado ao longo do tempo, a expressão **Atenção Básica (PAB)** permanece em classificações e registros históricos do SUS, inclusive no SIGTAP. Essa classificação indica que o procedimento está relacionado ao financiamento da atenção básica, mas não representa necessariamente pagamento individual por procedimento. Para análises financeiras, é necessário considerar a competência dos dados e consultar as normas de financiamento vigentes naquele período.
+
+A classificação **Média e Alta Complexidade (MAC)** identifica, em termos gerais, procedimentos ambulatoriais e hospitalares financiados pelo limite financeiro regular de média e alta complexidade dos estados e municípios. O limite MAC é transferido regularmente aos fundos de saúde e financia o funcionamento de serviços especializados, hospitais, ambulatórios, exames, terapias e outros componentes das redes de atenção. A produção registrada no SIA e no SIH é utilizada para programação, monitoramento, regulação, avaliação e controle, mas o valor informado no SIGTAP não deve ser interpretado automaticamente como o valor efetivamente transferido ao estabelecimento ou ao gestor.
+
+A classificação **Incentivo — MAC** também pertence ao campo da média e alta complexidade, mas identifica recursos vinculados a uma política, rede, serviço ou estratégia específica. Em geral, esses incentivos são instituídos por portarias e podem depender de habilitação, qualificação, adesão, cumprimento de critérios ou manutenção de determinado serviço. Por isso, o incentivo não corresponde necessariamente à multiplicação da quantidade produzida pelo valor do procedimento. Dependendo da regra aplicável, pode assumir a forma de custeio fixo, complemento financeiro ou transferência condicionada ao funcionamento de uma rede ou serviço.
+
+> O tipo de financiamento do procedimento não comprova o pagamento efetivamente realizado. Para analisar repasses, limites e execução financeira, devem ser consultadas fontes como SISMAC, Fundo Nacional de Saúde, InvestSUS e SIOPS.
+
+
+
+##### Rubrica FAEC
+
+A rubrica FAEC detalha programas, políticas, especialidades ou finalidades relacionadas ao financiamento e à classificação da produção.
+
+A denominação do campo não significa que todos os valores do domínio sejam necessariamente FAEC. O domínio também contém categorias de MAC, incentivos, vigilância, gestão e valores não discriminados. Por isso, a rubrica deve ser analisada em conjunto com o tipo de financiamento.
+
+| Valor do domínio | Rubrica                                                                                                   |
+|-----------------:|-----------------------------------------------------------------------------------------------------------|
+|              `1` | Atenção Básica — PAB                                                                                      |
+|              `2` | Assistência Farmacêutica                                                                                  |
+|              `3` | Coleta de material                                                                                        |
+|              `4` | Diagnóstico em laboratório clínico                                                                        |
+|              `5` | Coleta e exame anatomopatológico do colo uterino                                                          |
+|              `6` | Diagnóstico em neurologia                                                                                 |
+|              `7` | Diagnóstico em otorrinolaringologia e fonoaudiologia                                                      |
+|              `8` | Diagnóstico em psicologia e psiquiatria                                                                   |
+|              `9` | Consultas médicas e de outros profissionais de nível superior                                             |
+|             `10` | Atenção domiciliar                                                                                        |
+|             `11` | Atendimento e acompanhamento em reabilitação física, mental, visual, auditiva e de múltiplas deficiências |
+|             `12` | Atendimento e acompanhamento psicossocial                                                                 |
+|             `13` | Atendimento e acompanhamento em saúde do idoso                                                            |
+|             `14` | Atendimento e acompanhamento de queimados                                                                 |
+|             `15` | Atendimento e acompanhamento de diagnóstico de doenças endócrinas, metabólicas e nutricionais             |
+|             `16` | Tratamento de doenças do sistema nervoso central e periférico                                             |
+|             `17` | Tratamento de doenças do aparelho da visão                                                                |
+|             `18` | Tratamento em oncologia                                                                                   |
+|             `19` | Nefrologia                                                                                                |
+|             `20` | Tratamentos odontológicos                                                                                 |
+|             `21` | Cirurgia do sistema nervoso central e periférico                                                          |
+|             `22` | Cirurgias de ouvido, nariz e garganta                                                                     |
+|             `23` | Deformidade labiopalatal e craniofacial                                                                   |
+|             `24` | Cirurgia do aparelho da visão                                                                             |
+|             `25` | Cirurgia do aparelho circulatório                                                                         |
+|             `26` | Cirurgia do aparelho digestivo, órgãos anexos e parede abdominal, incluindo pré e pós-operatório          |
+|             `27` | Cirurgia do aparelho geniturinário                                                                        |
+|             `28` | Tratamento de queimados                                                                                   |
+|             `29` | Cirurgia reparadora para lipodistrofia                                                                    |
+|             `30` | Outras cirurgias plásticas e reparadoras                                                                  |
+|             `31` | Cirurgia orofacial                                                                                        |
+|             `32` | Procedimentos sequenciais                                                                                 |
+|             `33` | Cirurgias em nefrologia                                                                                   |
+|             `34` | Transplantes de órgãos, tecidos e células                                                                 |
+|             `35` | Medicamentos para transplante                                                                             |
+|             `36` | OPM auditivas                                                                                             |
+|             `37` | OPM em odontologia                                                                                        |
+|             `38` | OPM em queimados                                                                                          |
+|             `39` | OPM em nefrologia                                                                                         |
+|             `40` | OPM para transplantes                                                                                     |
+|             `41` | Incentivos ao pré-natal e nascimento                                                                      |
+|             `42` | Incentivo ao registro civil de nascimento                                                                 |
+|             `43` | Central Nacional de Regulação de Alta Complexidade — CNRAC                                                |
+|             `44` | Reguladores da atividade hormonal — inibidores de prolactina                                              |
+|             `45` | Política Nacional de Cirurgias Eletivas                                                                   |
+|             `46` | Redesignação e acompanhamento                                                                             |
+|             `47` | Projeto Olhar Brasil                                                                                      |
+|             `48` | Mamografia para rastreamento                                                                              |
+|             `49` | Projeto Olhar Brasil — consulta                                                                           |
+|             `50` | Projeto Olhar Brasil — óculos                                                                             |
+|             `51` | Implementação de cirurgia cardiovascular pediátrica                                                       |
+|             `52` | Cirurgias eletivas — Componente I                                                                         |
+|             `53` | Cirurgias eletivas — Componente II                                                                        |
+|             `54` | Cirurgias eletivas — Componente III                                                                       |
+|             `55` | Prótese mamária — exames                                                                                  |
+|             `56` | Prótese mamária — cirurgia                                                                                |
+|             `57` | Transplante — histocompatibilidade                                                                        |
+|             `58` | Triagem neonatal                                                                                          |
+|             `59` | Controle de qualidade do exame citopatológico do colo do útero                                            |
+|             `60` | Exames do leite materno                                                                                   |
+|             `61` | Atenção às pessoas em situação de violência sexual                                                        |
+|             `62` | Sangue e hemoderivados                                                                                    |
+|             `63` | Mamografia para rastreamento na faixa etária recomendada                                                  |
+|             `64` | Doenças raras                                                                                             |
+|             `65` | Cadeiras de rodas                                                                                         |
+|             `66` | Sistema de frequência modulada pessoal — FM                                                               |
+|             `67` | Medicamentos em urgência                                                                                  |
+|             `68` | Cirurgias eletivas — Componente Único                                                                     |
+|             `69` | Atenção Especializada em Saúde Auditiva                                                                   |
+|             `70` | Terapias especializadas em angiologia                                                                     |
+|             `71` | Tratamento de doença macular                                                                              |
+|             `72` | OPME não relacionadas ao ato cirúrgico                                                                    |
+|             `73` | Diagnóstico e tratamento em oncologia                                                                     |
+|             `74` | Diagnóstico de trombofilia em gestante                                                                    |
+|             `75` | Reabilitação pós-COVID-19                                                                                 |
+|             `76` | Telemedicina em urgência                                                                                  |
+|             `77` | Fisioterapia cardiovascular                                                                               |
+|             `78` | Hemodinâmica em atendimento de urgência                                                                   |
+|             `79` | Exames sorológicos e imunológicos                                                                         |
+|             `80` | QualiSUS Cardio                                                                                           |
+|             `81` | Pré-cirúrgico em cirurgias prioritárias                                                                   |
+|             `82` | Programa Agora Tem Especialistas — Componente Cirúrgico, anteriormente Redução das Filas                  |
+|             `83` | Síndrome Respiratória Aguda Grave — SRAG                                                                  |
+|             `84` | Alta Complexidade em Cardiologia                                                                          |
+|             `85` | Cirurgia da face e do sistema estomatognático                                                             |
+|             `86` | Neurocirurgias                                                                                            |
+|             `87` | Exames coprológicos                                                                                       |
+|             `88` | Programa Agora Tem Especialistas — Componente Ambulatorial                                                |
+|             `89` | Saúde bucal                                                                                               |
+|             `90` | Radioterapia                                                                                              |
+|             `91` | Recursos vinculados à parcela única                                                                       |
+|             `92` | Recursos vinculados a emendas parlamentares                                                               |
+|             `93` | Materno-infantil                                                                                          |
+|             `94` | Saúde da mulher                                                                                           |
+|             `95` | FAEC CNRAC — código anterior à Tabela Unificada, válido para `2008-01`                                    |
+|             `96` | FAEC eletiva — código anterior à Tabela Unificada, válido para `2008-01`                                  |
+|             `97` | Incentivo — MAC                                                                                           |
+|             `98` | Média e Alta Complexidade — MAC                                                                           |
+|             `99` | Vigilância em Saúde                                                                                       |
+|            `100` | Gestão do SUS                                                                                             |
+|            `101` | Não discriminado ou não se aplica                                                                         |
+
+
+##### Fonte orçamentária
+
+A fonte orçamentária identifica categorias específicas associadas à origem ou modalidade do recurso.
+
+| Valor do domínio | Fonte orçamentária                                        |
+|-----------------:|-----------------------------------------------------------|
+|              `1` | Modalidade 1 — Serviço de Saúde — Agora Tem Especialistas |
+|              `2` | Modalidade 2 — Equipes Volantes — Agora Tem Especialistas |
+|              `3` | Crédito financeiro — parcelas vencidas e vincendas        |
+|              `4` | Crédito financeiro — transação tributária                 |
+|              `5` | Branco ou ignorado                                        |
+
+> A fonte orçamentária deve ser analisada de acordo com a competência e com as normas específicas do programa. Ela não substitui a consulta à execução orçamentária, aos repasses do Fundo Nacional de Saúde ou aos registros do SIOPS.
+
+
+##### Regra contratual
+
+A regra contratual informa como o procedimento participa da geração de crédito no processamento contratual.
+
+| Valor do domínio | Regra contratual                                                                 |
+|-----------------:|----------------------------------------------------------------------------------|
+|              `1` | Não gera crédito para produção de internação ou produção ambulatorial            |
+|              `2` | Sem crédito na média complexidade ambulatorial, exceto FAEC                      |
+|              `3` | Sem crédito na média complexidade hospitalar, exceto FAEC                        |
+|              `4` | Sem crédito na alta complexidade ambulatorial, exceto FAEC                       |
+|              `5` | Sem crédito na alta complexidade hospitalar, exceto FAEC                         |
+|              `6` | Sem crédito nos procedimentos financiados pelo FAEC                              |
+|              `7` | Sem crédito total, incluindo FAEC                                                |
+|              `8` | Sem crédito nas ações especializadas de odontologia — CEO I, II e III            |
+|              `9` | Sem crédito no incentivo à Saúde do Trabalhador, exceto FAEC                     |
+|             `10` | Sem crédito total para hospital universitário do Ministério da Educação — HU/MEC |
+|             `11` | Sem crédito total para o Ministério da Saúde                                     |
+|             `12` | Sem crédito para Núcleo Ampliado de Saúde da Família — NASF, exceto FAEC         |
+|             `13` | Sem crédito total, incluindo FAEC — exclusivo para a Rede Sarah                  |
+|             `14` | Sem regra contratual                                                             |
+
+
+###### Cuidados de interpretação
+
+- `Sem crédito` não significa que o procedimento não possa ser registrado;
+- a regra contratual pode impedir ou modificar a geração de crédito em determinado componente;
+- registro de produção, aprovação, crédito e pagamento são etapas diferentes;
+- a regra deve ser interpretada junto ao financiamento, à rubrica, ao instrumento de registro e à competência;
+- o valor aprovado no SIA ou no SIH não comprova isoladamente o repasse financeiro ao estabelecimento;
+- alterações históricas devem ser preservadas por competência.
+
+
+
+##### Relação entre os atributos financeiros
+
+| Atributo              | Pergunta respondida                                                                |
+|-----------------------|------------------------------------------------------------------------------------|
+| Complexidade          | Em qual nível assistencial o procedimento está classificado?                       |
+| Financiamento         | Qual é a modalidade geral de financiamento do procedimento?                        |
+| Rubrica FAEC          | A qual programa, especialidade ou finalidade financeira a produção está associada? |
+| Fonte orçamentária    | Qual categoria de origem ou modalidade do recurso está associada ao registro?      |
+| Regra contratual      | Como o procedimento participa da geração de crédito contratual?                    |
+| Valor do procedimento | Qual valor de referência está definido no SIGTAP para a competência?               |
+| Produção aprovada     | Qual quantidade ou valor foi aprovado no processamento do SIA ou SIH?              |
+| Repasse financeiro    | Qual recurso foi efetivamente transferido pelo Fundo Nacional de Saúde?            |
+| Despesa executada     | Qual valor foi empenhado, liquidado ou pago pelo ente federativo?                  |
+
+
+
+#### Produção especializada e financiamento
+
+A produção ambulatorial e hospitalar de média e alta complexidade é registrada principalmente no SIA e no SIH.
+
+Os recursos federais destinados a essas ações estão organizados, de forma geral, em dois componentes:
+
+| Componente                | Característica                                                                                            |
+|---------------------------|-----------------------------------------------------------------------------------------------------------|
+| **Limite Financeiro MAC** | Recursos transferidos regularmente aos fundos estaduais, distrital e municipais                           |
+| **FAEC**                  | Financiamento de ações estratégicas e determinados procedimentos, apurado com base na produção registrada |
+
+
+##### Limite Financeiro MAC
+
+O **Limite Financeiro da Média e Alta Complexidade Ambulatorial e Hospitalar** financia ações e serviços especializados sob gestão estadual, distrital ou municipal.
+
+Ele pode contemplar:
+
+- consultas especializadas;
+- exames;
+- procedimentos ambulatoriais;
+- internações;
+- incentivos de custeio;
+- serviços habilitados;
+- redes e políticas específicas.
+
+A transferência federal ocorre de forma regular e automática aos fundos de saúde, observadas as regras de programação e financiamento.
+
+
+##### FAEC
+
+O **Fundo de Ações Estratégicas e Compensação (FAEC)** financia procedimentos ou políticas considerados estratégicos, além de determinados procedimentos incorporados ao SUS.
+
+O fluxo simplificado é:
+
+> Produção assistencial → registro no SIA ou SIH → processamento → apuração → transferência financeira
+
+A classificação do financiamento pode ser investigada no SIA por campos como:
+
+- `PA_TPFIN`: tipo de financiamento;
+- `PA_SUBFIN`: subtipo de financiamento;
+- `PA_VALAPR`: valor aprovado;
+- `PA_QTDAPR`: quantidade aprovada.
+
+Exemplo:
+
+
+``` sourceCode
+pa |>
+  dplyr::group_by(PA_TPFIN, PA_SUBFIN) |>
+  dplyr::summarise(
+    quantidade = sum(PA_QTDAPR, na.rm = TRUE),
+    valor_aprovado = sum(PA_VALAPR, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+###### Cuidados de interpretação
+
+- nem toda produção registrada gera pagamento adicional ao estabelecimento;
+- produção aprovada não é sinônimo de transferência federal;
+- valor SIGTAP não representa necessariamente custo;
+- Limite MAC e FAEC possuem lógicas distintas;
+- incentivos e recursos globais podem não ser identificados em cada procedimento;
+- diferenças entre produção apresentada e aprovada devem ser consideradas.
+
+> Para estudar alocação de recursos, combine SIA/SIH com informações do SISMAC, Fundo Nacional de Saúde, InvestSUS e SIOPS.
+
+Fonte: [Financiamento da Média e Alta Complexidade](https://www.gov.br/saude/pt-br/acesso-a-informacao/gestao-do-sus/programacao-regulacao-controle-e-financiamento-da-mac/financiamento-da-media-e-alta-complexidades-mac).
+
+
+
+
+
+### ETL de arquivos DBC via FTP
+
+O ponto central da aula é construir uma ETL pequena e completa com arquivos disseminados pelo Ministério da Saúde. O exemplo usa o Acre, os meses de setembro a novembro de 2024 e dois subsistemas do SIA:
+
+- **PA:** produção ambulatorial;
+- **AM:** APAC de medicamentos.
+
+O objeto principal será `pa`. Ele será enriquecido com o CNS disseminado no campo `AP_CNSPCN` do AM.
+
+> O nome DATASUS identifica a infraestrutura e portais historicamente associados à disseminação. Nesta aula, prefira as expressões **arquivos do SUS**, **arquivos do SIA** ou **arquivos disseminados pelo Ministério da Saúde**.
+
+
+#### Visão geral do fluxo
+
+| Etapa             | Ação                              | Objeto produzido     | Funções principais                     |
+|-------------------|-----------------------------------|----------------------|----------------------------------------|
+| Extrair           | listar o diretório FTP            | `arquivos_ftp`       | `curl_fetch_memory()`, `rawToChar()`   |
+| Extrair           | filtrar PA, AM, UF e competências | `catalogo_ftp`       | `grepl()`, `startsWith()`, `for`       |
+| Extrair           | baixar os DBC selecionados        | arquivos locais      | `curl_download()`                      |
+| Transformar       | ler cada DBC                      | lista de data frames | `read.dbc()`                           |
+| Transformar       | concatenar competências           | `pa` e `am`          | `bind_rows()` ou `do.call(rbind, ...)` |
+| Transformar       | selecionar e tipificar campos     | `pa_analitico`       | `select()`, `mutate()`                 |
+| Carregar/integrar | relacionar PA e AM                | `pa_enriquecido`     | `left_join()`                          |
+| Analisar          | resumir quantidades e valores     | `resumo_competencia` | `group_by()`, `summarise()`            |
+
+Cada chunk introduz somente um conceito. No final, as etapas serão reunidas em funções.
+
+
+#### Pacotes empregados
+
+| Pacote     | Papel no fluxo                                          |
+|------------|---------------------------------------------------------|
+| `curl`     | acessar a listagem FTP e baixar arquivos                |
+| `read.dbc` | descompactar e ler arquivos DBC                         |
+| `dplyr`    | selecionar, transformar, concatenar, integrar e resumir |
+| `ggplot2`  | visualizar o resultado analítico                        |
+
+A instalação é realizada uma única vez no console:
+
+
+``` sourceCode
+install.packages(c(
+  "curl", "dplyr", "ggplot2",
+  "remotes", "tibble"
+))
+remotes::install_github("danicat/read.dbc")
+```
+
+
+
+#### Definir os parâmetros
+
+Primeiro, defina o diretório remoto, a UF, as competências e a pasta local. Esses objetos serão reutilizados em toda a ETL.
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+library(read.dbc)
+
+url_ftp <- paste0(
+  "ftp://ftp.datasus.gov.br/dissemin/publicos/",
+  "SIASUS/200801_/Dados/"
+)
+
+uf <- "AC"
+competencias <- sprintf("24%02d", 9:11)
+tipos <- c("PA", "AM")
+diretorio_dados <- "dados_modulo_2"
+
+dir.create(
+  diretorio_dados,
+  showWarnings = FALSE,
+  recursive = TRUE
+)
+```
+
+
+Os valores de `competencias` usam o padrão `AAMM` dos nomes dos arquivos:
+
+
+``` sourceCode
+competencias
+```
+
+
+Mostrar resultado
+
+    ## [1] "2409" "2410" "2411"
+
+
+#### Listar o diretório FTP
+
+O diretório é consultado antes da construção dos nomes. Essa estratégia permite encontrar mais de um arquivo para a mesma UF e competência.
+
+
+``` sourceCode
+library(curl)
+
+texto_ftp <- curl_fetch_memory(url_ftp)$content |>
+  rawToChar()
+
+arquivos_ftp <- regmatches(
+  texto_ftp,
+  gregexpr(
+    "[[:alnum:]_-]+\\.[dD][bB][cC]",
+    texto_ftp
+  )
+)[[1]] |>
+  unique()
+
+head(arquivos_ftp)
+```
+
+
+Mostrar resultado
+
+    ## [1] "ABAC2501.dbc" "ABAC2502.dbc" "ABAC2503.dbc" "ABAC2504.dbc" "ABAC2505.dbc"
+    ## [6] "ABAC2506.dbc"
+
+O resultado é um vetor de nomes. Ainda não houve download dos dados.
+
+
+#### Filtrar a lista com R base
+
+O filtro combina:
+
+- o prefixo `PA` ou `AM`;
+- a UF `AC`;
+- cada competência entre `2409` e `2411`.
+
+O trecho `grepl("AC2409", nome, fixed = TRUE)` equivale conceitualmente ao filtro SQL `LIKE '%AC2409%'`.
+
+
+``` sourceCode
+catalogo_ftp <- NULL
+
+for (tipo in tipos) {
+  for (aamm in competencias) {
+    filtro_uf_aamm <- paste0(uf, aamm)
+
+    encontrados <- arquivos_ftp[
+      startsWith(toupper(arquivos_ftp), tipo) &
+        grepl(
+          filtro_uf_aamm,
+          toupper(arquivos_ftp),
+          fixed = TRUE
+        )
+    ]
+
+    catalogo_ftp <- rbind(
+      catalogo_ftp,
+      data.frame(
+        tipo = tipo,
+        uf = uf,
+        competencia = paste0("20", aamm),
+        arquivo = encontrados,
+        url = paste0(url_ftp, encontrados)
+      )
+    )
+  }
+}
+
+catalogo_ftp
+```
+
+
+Mostrar resultado
+
+
+
+Para o Acre, são esperados `PAAC2409.dbc` a `PAAC2411.dbc` e `AMAC2409.dbc` a `AMAC2411.dbc`. Se outra UF tiver arquivos adicionais com o mesmo padrão `UFAAMM`, todas as ocorrências serão preservadas.
+
+
+#### Filtrar a lista com `dplyr`
+
+O mesmo princípio pode ser expresso com `dplyr`. Não é necessário executar as duas alternativas na ETL; esta comparação serve para relacionar R base e tidyverse.
+
+
+``` sourceCode
+library(dplyr)
+library(tibble)
+
+lista_ftp <- tibble(
+  arquivo = arquivos_ftp,
+  arquivo_maiusculo = toupper(arquivos_ftp)
+)
+
+lista_ftp |>
+  filter(
+    startsWith(arquivo_maiusculo, "PA"),
+    grepl("AC2409", arquivo_maiusculo, fixed = TRUE)
+  ) |>
+  select(arquivo)
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Baixar os arquivos selecionados
+
+Acrescente o caminho local ao catálogo e percorra suas linhas. Neste primeiro fluxo, o download é deliberadamente direto: verificações de tentativas, cache e arquivos preexistentes ficam para rotinas de produção.
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+
+catalogo_ftp <- catalogo_ftp |>
+  mutate(
+    destino = file.path(
+      diretorio_dados,
+      arquivo
+    )
+  )
+
+for (i in seq_len(nrow(catalogo_ftp))) {
+  # Baixa um DBC por iteração.
+  curl_download(
+    catalogo_ftp$url[i],
+    catalogo_ftp$destino[i],
+    mode = "wb"
+  )
+}
+```
+
+
+
+#### Ler um DBC
+
+Antes de automatizar a leitura, abra apenas o primeiro PA. Isso permite observar o formato retornado por `read.dbc()`.
+
+
+``` sourceCode
+library(dplyr)
+library(read.dbc)
+
+arquivo_exemplo <- catalogo_ftp |>
+  filter(tipo == "PA") |>
+  slice(1) |>
+  pull(destino)
+
+pa_exemplo <- read.dbc(arquivo_exemplo)
+
+dim(pa_exemplo)
+```
+
+
+Mostrar resultado
+
+    ## [1] 153180     60
+
+
+``` sourceCode
+names(pa_exemplo)
+```
+
+
+Mostrar resultado
+
+    ##  [1] "PA_CODUNI"  "PA_GESTAO"  "PA_CONDIC"  "PA_UFMUN"   "PA_REGCT"  
+    ##  [6] "PA_INCOUT"  "PA_INCURG"  "PA_TPUPS"   "PA_TIPPRE"  "PA_MN_IND" 
+    ## [11] "PA_CNPJCPF" "PA_CNPJMNT" "PA_CNPJ_CC" "PA_MVM"     "PA_CMP"    
+    ## [16] "PA_PROC_ID" "PA_TPFIN"   "PA_SUBFIN"  "PA_NIVCPL"  "PA_DOCORIG"
+    ## [21] "PA_AUTORIZ" "PA_CNSMED"  "PA_CBOCOD"  "PA_MOTSAI"  "PA_OBITO"  
+    ## [26] "PA_ENCERR"  "PA_PERMAN"  "PA_ALTA"    "PA_TRANSF"  "PA_CIDPRI" 
+    ## [31] "PA_CIDSEC"  "PA_CIDCAS"  "PA_CATEND"  "PA_IDADE"   "IDADEMIN"  
+    ## [36] "IDADEMAX"   "PA_FLIDADE" "PA_SEXO"    "PA_RACACOR" "PA_MUNPCN" 
+    ## [41] "PA_QTDPRO"  "PA_QTDAPR"  "PA_VALPRO"  "PA_VALAPR"  "PA_UFDIF"  
+    ## [46] "PA_MNDIF"   "PA_DIF_VAL" "NU_VPA_TOT" "NU_PA_TOT"  "PA_INDICA" 
+    ## [51] "PA_CODOCO"  "PA_FLQT"    "PA_FLER"    "PA_ETNIA"   "PA_VL_CF"  
+    ## [56] "PA_VL_CL"   "PA_VL_INC"  "PA_SRV_C"   "PA_INE"     "PA_NAT_JUR"
+
+O DBC é descompactado e convertido em um `data.frame` na memória. A função não mantém automaticamente o nome do arquivo dentro de cada linha.
+
+
+#### Concatenar as competências do PA
+
+Agora, percorra os três PA. Em cada iteração:
+
+1.  leia o DBC;
+2.  acrescente a rastreabilidade;
+3.  armazene o resultado em uma lista;
+4.  concatene as partes.
+
+
+``` sourceCode
+library(dplyr)
+library(read.dbc)
+
+catalogo_pa <- catalogo_ftp |>
+  filter(tipo == "PA")
+
+partes_pa <- vector(
+  "list",
+  nrow(catalogo_pa)
+)
+
+for (i in seq_len(nrow(catalogo_pa))) {
+  # Lê e identifica a origem de cada parte.
+  partes_pa[[i]] <- read.dbc(
+    catalogo_pa$destino[i]
+  ) |>
+    mutate(
+      arquivo_origem = catalogo_pa$arquivo[i],
+      competencia_arquivo = catalogo_pa$competencia[i],
+      subsistema_origem = "PA"
+    )
+}
+
+pa <- bind_rows(partes_pa)
+
+dim(pa)
+```
+
+
+Mostrar resultado
+
+    ## [1] 470152     63
+
+Com R base, a última linha poderia ser substituída por:
+
+
+``` sourceCode
+# Alternativa em R base.
+pa_base <- do.call(
+  rbind,
+  partes_pa
+)
+```
+
+
+`bind_rows()` costuma ser mais tolerante quando as partes possuem pequenas diferenças de colunas. Isso não elimina a necessidade de verificar mudanças de layout.
+
+
+#### Concatenar as competências do AM
+
+Repita o mesmo padrão para as APAC de medicamentos. Os nomes dos objetos continuam coerentes: `catalogo_am`, `partes_am` e `am`.
+
+
+``` sourceCode
+library(dplyr)
+library(read.dbc)
+
+catalogo_am <- catalogo_ftp |>
+  filter(tipo == "AM")
+
+partes_am <- vector(
+  "list",
+  nrow(catalogo_am)
+)
+
+for (i in seq_len(nrow(catalogo_am))) {
+  # Lê e identifica a origem de cada parte.
+  partes_am[[i]] <- read.dbc(
+    catalogo_am$destino[i]
+  ) |>
+    mutate(
+      arquivo_origem = catalogo_am$arquivo[i],
+      competencia_arquivo = catalogo_am$competencia[i],
+      subsistema_origem = "AM"
+    )
+}
+
+am <- bind_rows(partes_am)
+
+dim(am)
+```
+
+
+Mostrar resultado
+
+    ## [1] 12654    54
+
+
+#### Explorar antes de transformar
+
+Não abra milhões de linhas imediatamente no visualizador. Comece pela estrutura, pelas dimensões, por poucas linhas e pelas frequências das competências.
+
+
+``` sourceCode
+library(dplyr)
+
+glimpse(pa)
+```
+
+
+Mostrar resultado
+
+    ## Rows: 470,152
+    ## Columns: 63
+    ## $ PA_CODUNI           <fct> 2003228, 7547153, 6119697, 6119697, 2001306, 68618…
+    ## $ PA_GESTAO           <fct> 120040, 120040, 120040, 120040, 120040, 120000, 12…
+    ## $ PA_CONDIC           <fct> PG, PG, PG, PG, PG, EP, EP, EP, EP, EP, EP, EP, EP…
+    ## $ PA_UFMUN            <fct> 120040, 120040, 120040, 120040, 120040, 120040, 12…
+    ## $ PA_REGCT            <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_INCOUT           <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_INCURG           <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_TPUPS            <fct> 02, 02, 02, 02, 02, 39, 39, 05, 39, 36, 04, 05, 39…
+    ## $ PA_TIPPRE           <fct> 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00…
+    ## $ PA_MN_IND           <fct> M, M, M, M, M, I, I, M, M, M, M, M, I, I, I, M, M,…
+    ## $ PA_CNPJCPF          <fct> 04034583000637, 04034583000637, 04034583000637, 04…
+    ## $ PA_CNPJMNT          <fct> 04034583000637, 04034583000637, 04034583000637, 04…
+    ## $ PA_CNPJ_CC          <fct> 00000000000000, 00000000000000, 00000000000000, 00…
+    ## $ PA_MVM              <fct> 202409, 202409, 202409, 202409, 202409, 202409, 20…
+    ## $ PA_CMP              <fct> 202409, 202409, 202409, 202409, 202409, 202409, 20…
+    ## $ PA_PROC_ID          <fct> 0301100241, 0301010269, 0301010269, 0301010234, 03…
+    ## $ PA_TPFIN            <fct> 01, 01, 01, 01, 01, 06, 06, 06, 06, 06, 01, 06, 06…
+    ## $ PA_SUBFIN           <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_NIVCPL           <fct> 1, 1, 1, 1, 1, 3, 3, 3, 2, 2, 1, 3, 3, 3, 2, 2, 2,…
+    ## $ PA_DOCORIG          <fct> I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,…
+    ## $ PA_AUTORIZ          <fct> 0000000000000, 0000000000000, 0000000000000, 00000…
+    ## $ PA_CNSMED           <fct> 708905778853019, 703408225885118, 203675902170003,…
+    ## $ PA_CBOCOD           <fct> 223565, 223565, 223505, 223565, 322205, 225320, 22…
+    ## $ PA_MOTSAI           <fct> 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00…
+    ## $ PA_OBITO            <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_ENCERR           <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_PERMAN           <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_ALTA             <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_TRANSF           <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_CIDPRI           <fct> 0000, 0000, 0000, Z768, 0000, 0000, 0000, 0000, Z2…
+    ## $ PA_CIDSEC           <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_CIDCAS           <fct> 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 00…
+    ## $ PA_CATEND           <fct> 01, 01, 01, 01, 01, 02, 02, 02, 01, 01, 01, 02, 02…
+    ## $ PA_IDADE            <fct> 017, 000, 001, 027, 033, 016, 035, 017, 030, 002, …
+    ## $ IDADEMIN            <fct> 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,…
+    ## $ IDADEMAX            <fct> 130, 19, 19, 130, 130, 130, 130, 130, 130, 130, 13…
+    ## $ PA_FLIDADE          <fct> 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+    ## $ PA_SEXO             <fct> F, F, F, M, M, M, F, M, F, F, F, F, F, M, F, F, M,…
+    ## $ PA_RACACOR          <fct> 04, 04, 04, 04, 04, 03, 03, 03, 03, 03, 03, 04, 01…
+    ## $ PA_MUNPCN           <fct> 120040, 120040, 120040, 120040, 120040, 120040, 12…
+    ## $ PA_QTDPRO           <int> 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1,…
+    ## $ PA_QTDAPR           <int> 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1,…
+    ## $ PA_VALPRO           <dbl> 0.00, 0.00, 0.00, 0.00, 0.00, 268.75, 268.75, 97.4…
+    ## $ PA_VALAPR           <dbl> 0.00, 0.00, 0.00, 0.00, 0.00, 268.75, 268.75, 97.4…
+    ## $ PA_UFDIF            <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0,…
+    ## $ PA_MNDIF            <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0,…
+    ## $ PA_DIF_VAL          <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ NU_VPA_TOT          <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ NU_PA_TOT           <dbl> 0.00, 0.00, 0.00, 0.00, 0.00, 268.75, 268.75, 97.4…
+    ## $ PA_INDICA           <fct> 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,…
+    ## $ PA_CODOCO           <fct> 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
+    ## $ PA_FLQT             <fct> K, K, K, K, K, K, K, K, K, K, K, K, K, K, K, K, K,…
+    ## $ PA_FLER             <fct> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_ETNIA            <fct> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA…
+    ## $ PA_VL_CF            <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_VL_CL            <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_VL_INC           <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ PA_SRV_C            <fct> NA, NA, NA, NA, NA, 121004, 121004, 121003, 145003…
+    ## $ PA_INE              <fct> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA…
+    ## $ PA_NAT_JUR          <fct> 1244, 1244, 1244, 1244, 1244, 2062, 2062, 1023, 10…
+    ## $ arquivo_origem      <chr> "PAAC2409.dbc", "PAAC2409.dbc", "PAAC2409.dbc", "P…
+    ## $ competencia_arquivo <chr> "202409", "202409", "202409", "202409", "202409", …
+    ## $ subsistema_origem   <chr> "PA", "PA", "PA", "PA", "PA", "PA", "PA", "PA", "P…
+
+
+``` sourceCode
+pa |>
+  count(
+    PA_CMP,
+    arquivo_origem,
+    name = "registros"
+  )
+```
+
+
+Mostrar resultado
+
+
+
+Com R base:
+
+
+``` sourceCode
+dim(pa)
+```
+
+
+Mostrar resultado
+
+    ## [1] 470152     63
+
+
+``` sourceCode
+str(pa)
+```
+
+
+Mostrar resultado
+
+    ## 'data.frame':    470152 obs. of  63 variables:
+    ##  $ PA_CODUNI          : Factor w/ 207 levels "0117382","0128619",..: 79 180 122 122 48 134 134 114 123 2 ...
+    ##  $ PA_GESTAO          : Factor w/ 20 levels "120000","120001",..: 14 14 14 14 14 1 1 1 1 1 ...
+    ##  $ PA_CONDIC          : Factor w/ 2 levels "EP","PG": 2 2 2 2 2 1 1 1 1 1 ...
+    ##  $ PA_UFMUN           : Factor w/ 22 levels "120001","120005",..: 15 15 15 15 15 15 15 6 3 15 ...
+    ##  $ PA_REGCT           : Factor w/ 4 levels "0000","7111",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_INCOUT          : Factor w/ 3 levels "0000","2453",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_INCURG          : Factor w/ 1 level "0000": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_TPUPS           : Factor w/ 21 levels "02","04","05",..: 1 1 1 1 1 7 7 3 7 6 ...
+    ##  $ PA_TIPPRE          : Factor w/ 1 level "00": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_MN_IND          : Factor w/ 2 levels "I","M": 2 2 2 2 2 1 1 2 2 2 ...
+    ##  $ PA_CNPJCPF         : Factor w/ 61 levels "00529443000255",..: 34 34 34 34 34 44 44 22 27 32 ...
+    ##  $ PA_CNPJMNT         : Factor w/ 22 levels "00000000000000",..: 6 6 6 6 6 1 1 5 5 5 ...
+    ##  $ PA_CNPJ_CC         : Factor w/ 1 level "00000000000000": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_MVM             : Factor w/ 3 levels "202409","202410",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_CMP             : Factor w/ 6 levels "202406","202407",..: 4 4 4 4 4 4 4 4 4 4 ...
+    ##  $ PA_PROC_ID         : Factor w/ 1115 levels "0101010010","0101010028",..: 551 463 463 462 551 359 359 347 157 502 ...
+    ##  $ PA_TPFIN           : Factor w/ 6 levels "01","02","04",..: 1 1 1 1 1 5 5 5 5 5 ...
+    ##  $ PA_SUBFIN          : Factor w/ 7 levels "0000","0013",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_NIVCPL          : Factor w/ 4 levels "0","1","2","3": 2 2 2 2 2 4 4 4 3 3 ...
+    ##  $ PA_DOCORIG         : Factor w/ 5 levels "B","C","I","P",..: 3 3 3 3 3 3 3 3 3 3 ...
+    ##  $ PA_AUTORIZ         : Factor w/ 12857 levels "0000000000000",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_CNSMED          : Factor w/ 1259 levels "000000000000000",..: 976 484 16 502 621 123 123 897 459 826 ...
+    ##  $ PA_CBOCOD          : Factor w/ 95 levels "221105","221205",..: 23 23 21 23 82 73 73 73 2 26 ...
+    ##  $ PA_MOTSAI          : Factor w/ 12 levels "00","11","12",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_OBITO           : Factor w/ 2 levels "0","1": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_ENCERR          : Factor w/ 2 levels "0","1": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_PERMAN          : Factor w/ 2 levels "0","1": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_ALTA            : Factor w/ 2 levels "0","1": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_TRANSF          : Factor w/ 2 levels "0","1": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_CIDPRI          : Factor w/ 1699 levels "0000","1111",..: 1 1 1 1131 1 1 1 1 1115 290 ...
+    ##  $ PA_CIDSEC          : Factor w/ 2 levels "0000","N188": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_CIDCAS          : Factor w/ 56 levels "0000","B181",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_CATEND          : Factor w/ 7 levels "01","02","03",..: 1 1 1 1 1 2 2 2 1 1 ...
+    ##  $ PA_IDADE           : Factor w/ 117 levels "000","001","002",..: 18 1 2 28 34 17 36 18 31 3 ...
+    ##  $ IDADEMIN           : Factor w/ 25 levels "0","1","10","12",..: 1 1 1 25 1 1 1 1 1 1 ...
+    ##  $ IDADEMAX           : Factor w/ 19 levels "0","1","10","100",..: 5 7 7 5 5 5 5 5 5 5 ...
+    ##  $ PA_FLIDADE         : Factor w/ 3 levels "0","1","3": 2 2 2 2 2 2 2 2 2 2 ...
+    ##  $ PA_SEXO            : Factor w/ 3 levels "0","F","M": 2 2 2 3 3 3 2 3 2 2 ...
+    ##  $ PA_RACACOR         : Factor w/ 6 levels "00","01","02",..: 5 5 5 5 5 4 4 4 4 4 ...
+    ##  $ PA_MUNPCN          : Factor w/ 352 levels "110001","110002",..: 35 35 35 35 35 35 35 26 23 35 ...
+    ##  $ PA_QTDPRO          : int  1 1 1 1 1 1 1 1 1 2 ...
+    ##  $ PA_QTDAPR          : int  1 1 1 1 1 1 1 1 1 2 ...
+    ##  $ PA_VALPRO          : num  0 0 0 0 0 ...
+    ##  $ PA_VALAPR          : num  0 0 0 0 0 ...
+    ##  $ PA_UFDIF           : Factor w/ 3 levels "0","1","9": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_MNDIF           : Factor w/ 3 levels "0","1","9": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_DIF_VAL         : num  0 0 0 0 0 0 0 0 0 0 ...
+    ##  $ NU_VPA_TOT         : num  0 0 0 0 0 0 0 0 0 0 ...
+    ##  $ NU_PA_TOT          : num  0 0 0 0 0 ...
+    ##  $ PA_INDICA          : Factor w/ 3 levels "0","5","6": 2 2 2 2 2 2 2 2 2 2 ...
+    ##  $ PA_CODOCO          : Factor w/ 5 levels "1","2","3","4",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_FLQT            : Factor w/ 6 levels "K","L","M","N",..: 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_FLER            : Factor w/ 1 level "0": 1 1 1 1 1 1 1 1 1 1 ...
+    ##  $ PA_ETNIA           : Factor w/ 49 levels "0004","0011",..: NA NA NA NA NA NA NA NA NA NA ...
+    ##  $ PA_VL_CF           : num  0 0 0 0 0 0 0 0 0 0 ...
+    ##  $ PA_VL_CL           : num  0 0 0 0 0 0 0 0 0 0 ...
+    ##  $ PA_VL_INC          : num  0 0 0 0 0 0 0 0 0 0 ...
+    ##  $ PA_SRV_C           : Factor w/ 62 levels "113003","113004",..: NA NA NA NA NA 12 12 11 44 33 ...
+    ##  $ PA_INE             : Factor w/ 1 level "0000006564": NA NA NA NA NA NA NA NA NA NA ...
+    ##  $ PA_NAT_JUR         : Factor w/ 7 levels "1023","1147",..: 3 3 3 3 3 4 4 1 1 1 ...
+    ##  $ arquivo_origem     : chr  "PAAC2409.dbc" "PAAC2409.dbc" "PAAC2409.dbc" "PAAC2409.dbc" ...
+    ##  $ competencia_arquivo: chr  "202409" "202409" "202409" "202409" ...
+    ##  $ subsistema_origem  : chr  "PA" "PA" "PA" "PA" ...
+    ##  - attr(*, "data_types")= chr [1:60] "C" "C" "C" "C" ...
+
+
+``` sourceCode
+head(pa, 3)
+```
+
+
+Mostrar resultado
+
+
+
+``` sourceCode
+table(pa$PA_CMP, useNA = "ifany")
+```
+
+
+Mostrar resultado
+
+    ## 
+    ## 202406 202407 202408 202409 202410 202411 
+    ##      1    130   2179 152362 161548 153932
+
+
+#### Aplicar o dicionário ao PA
+
+O dicionário orienta a seleção e a tipificação. Nesta aula, será usada uma tabela mínima com os campos necessários para descrever produção e integrar PA e AM.
+
+
+``` sourceCode
+library(dplyr)
+library(tibble)
+
+dicionario_pa <- tribble(
+  ~campo,        ~tipo,       ~descricao,
+  "PA_CODUNI",  "character", "Código CNES do estabelecimento",
+  "PA_CMP",     "character", "Competência de realização",
+  "PA_PROC_ID", "character", "Código do procedimento",
+  "PA_AUTORIZ", "character", "Número da autorização",
+  "PA_QTDAPR",  "numeric",   "Quantidade aprovada",
+  "PA_VALAPR",  "numeric",   "Valor aprovado"
+)
+
+dicionario_pa
+```
+
+
+Mostrar resultado
+
+
+
+Selecione os campos e preserve os identificadores como texto:
+
+
+``` sourceCode
+library(dplyr)
+
+pa_analitico <- pa |>
+  transmute(
+    PA_CODUNI = as.character(PA_CODUNI),
+    PA_CMP = as.character(PA_CMP),
+    PA_PROC_ID = as.character(PA_PROC_ID),
+    PA_AUTORIZ = as.character(PA_AUTORIZ),
+    PA_QTDAPR = as.numeric(PA_QTDAPR),
+    PA_VALAPR = as.numeric(PA_VALAPR),
+    arquivo_origem,
+    competencia_arquivo
+  )
+
+glimpse(pa_analitico)
+```
+
+
+Mostrar resultado
+
+    ## Rows: 470,152
+    ## Columns: 8
+    ## $ PA_CODUNI           <chr> "2003228", "7547153", "6119697", "6119697", "20013…
+    ## $ PA_CMP              <chr> "202409", "202409", "202409", "202409", "202409", …
+    ## $ PA_PROC_ID          <chr> "0301100241", "0301010269", "0301010269", "0301010…
+    ## $ PA_AUTORIZ          <chr> "0000000000000", "0000000000000", "0000000000000",…
+    ## $ PA_QTDAPR           <dbl> 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1,…
+    ## $ PA_VALAPR           <dbl> 0.00, 0.00, 0.00, 0.00, 0.00, 268.75, 268.75, 97.4…
+    ## $ arquivo_origem      <chr> "PAAC2409.dbc", "PAAC2409.dbc", "PAAC2409.dbc", "P…
+    ## $ competencia_arquivo <chr> "202409", "202409", "202409", "202409", "202409", …
+
+Com R base, a seleção equivalente seria:
+
+
+``` sourceCode
+campos_pa <- c(
+  "PA_CODUNI", "PA_CMP", "PA_PROC_ID",
+  "PA_AUTORIZ", "PA_QTDAPR", "PA_VALAPR",
+  "arquivo_origem", "competencia_arquivo"
+)
+
+pa_analitico_base <- pa[, campos_pa]
+```
+
+
+
+#### Preparar as chaves do PA e do AM
+
+Os campos são definidos como caracteres no layout. Ainda assim, arquivos DBF podem conter bytes incompatíveis com UTF-8. Como competência, autorização e CNS são numéricos, a normalização pode manter somente os dígitos em modo binário.
+
+
+``` sourceCode
+library(dplyr)
+
+normalizar_codigo <- function(x, tamanho) {
+  # Mantém somente dígitos sem interpretar a codificação.
+  x <- gsub(
+    "[^0-9]",
+    "",
+    as.character(x),
+    useBytes = TRUE
+  )
+
+  x[x == ""] <- NA_character_
+  tamanho_invalido <- !is.na(x) &
+    nchar(x, type = "bytes") != tamanho
+  x[tamanho_invalido] <- NA_character_
+  x
+}
+
+pa_analitico <- pa_analitico |>
+  mutate(
+    competencia_chave = normalizar_codigo(PA_CMP, 6),
+    autorizacao_chave = normalizar_codigo(PA_AUTORIZ, 13)
+  )
+
+am_cns <- am |>
+  transmute(
+    competencia_chave = normalizar_codigo(AP_CMP, 6),
+    autorizacao_chave = normalizar_codigo(AP_AUTORIZ, 13),
+    cns_am = normalizar_codigo(AP_CNSPCN, 15)
+  ) |>
+  filter(
+    !is.na(competencia_chave),
+    !is.na(autorizacao_chave),
+    !is.na(cns_am),
+    cns_am != "000000000000000"
+  ) |>
+  distinct()
+```
+
+
+
+#### Verificar a granularidade do AM
+
+Antes da junção, conte quantos CNS distintos existem para cada combinação de competência e autorização.
+
+
+``` sourceCode
+library(dplyr)
+
+autorizacoes_ambiguas <- am_cns |>
+  count(
+    competencia_chave,
+    autorizacao_chave,
+    name = "quantidade_cns"
+  ) |>
+  filter(quantidade_cns > 1)
+
+autorizacoes_ambiguas
+```
+
+
+Mostrar resultado
+
+
+
+Uma tabela vazia indica que a chave escolhida identifica no máximo um CNS no recorte. A validação é apresentada antes da solução robusta para que o aluno observe a cardinalidade, em vez de receber apenas uma interrupção automática.
+
+
+#### Enriquecer o PA com o CNS do AM
+
+A junção utiliza conjuntamente competência e autorização. `left_join()` conserva todas as linhas do PA e acrescenta `cns_am` quando existe correspondência.
+
+
+``` sourceCode
+library(dplyr)
+
+pa_enriquecido <- pa_analitico |>
+  left_join(
+    am_cns,
+    by = c(
+      "competencia_chave",
+      "autorizacao_chave"
+    )
+  )
+
+dim(pa_enriquecido)
+```
+
+
+Mostrar resultado
+
+    ## [1] 470152     11
+
+As linhas sem correspondência no AM permanecem com `cns_am = NA`. Isso é esperado para registros oriundos de outros instrumentos ou subsistemas.
+
+
+#### Validar o resultado da integração
+
+Compare linhas, autorizações e CNS. Essas medidas não são equivalentes.
+
+
+``` sourceCode
+library(dplyr)
+
+pa_enriquecido |>
+  summarise(
+    linhas = n(),
+    linhas_com_cns = sum(!is.na(cns_am)),
+    autorizacoes_com_cns = n_distinct(
+      autorizacao_chave[!is.na(cns_am)]
+    ),
+    cns_distintos = n_distinct(
+      cns_am,
+      na.rm = TRUE
+    )
+  )
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Construir um indicador mínimo
+
+O primeiro produto analítico resume a produção por competência. Quantidade aprovada, valor aprovado e usuários identificados respondem a perguntas diferentes.
+
+
+``` sourceCode
+library(dplyr)
+
+resumo_competencia <- pa_enriquecido |>
+  group_by(PA_CMP) |>
+  summarise(
+    procedimentos = n_distinct(PA_PROC_ID),
+    estabelecimentos = n_distinct(PA_CODUNI),
+    quantidade_aprovada = sum(PA_QTDAPR, na.rm = TRUE),
+    valor_aprovado = sum(PA_VALAPR, na.rm = TRUE),
+    usuarios_am = n_distinct(cns_am, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+resumo_competencia
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Visualizar o resultado
+
+
+``` sourceCode
+library(ggplot2)
+
+ggplot(
+  resumo_competencia,
+  aes(
+    x = PA_CMP,
+    y = valor_aprovado,
+    group = 1
+  )
+) +
+  geom_line(
+    color = "#337ab7",
+    linewidth = 1
+  ) +
+  geom_point(
+    color = "#2e6da4",
+    size = 2.5
+  ) +
+  labs(
+    x = "Competência",
+    y = "Valor aprovado (R$)",
+    title = "Produção ambulatorial aprovada no Acre"
+  ) +
+  theme_minimal()
+```
+
+
+Mostrar gráfico
+
+> **Resultado gráfico:** série mensal produzida pelo bloco anterior. A imagem não estava disponível no pacote publicado; ao executar o código, o gráfico é regenerado com os dados selecionados.
+
+> `PA_VALAPR` é um valor administrativo aprovado segundo as regras do SIA. Ele não deve ser interpretado automaticamente como custo econômico do cuidado.
+
+
+#### Síntese em funções
+
+Depois de compreender cada etapa, o fluxo pode ser organizado em funções pequenas. Cada função possui uma responsabilidade: listar, filtrar, baixar ou ler.
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+library(read.dbc)
+
+listar_dbc_ftp <- function(url_ftp) {
+  # Retorna os nomes DBC disponíveis no diretório.
+  texto <- curl_fetch_memory(url_ftp)$content |>
+    rawToChar()
+
+  regmatches(
+    texto,
+    gregexpr(
+      "[[:alnum:]_-]+\\.[dD][bB][cC]",
+      texto
+    )
+  )[[1]] |>
+    unique()
+}
+
+filtrar_dbc <- function(nomes, tipos, uf, competencias, url_ftp) {
+  # Constrói um catálogo reutilizável.
+  catalogo <- NULL
+
+  for (tipo in tipos) {
+    for (aamm in competencias) {
+      filtro <- paste0(uf, aamm)
+      selecionados <- nomes[
+        startsWith(toupper(nomes), tipo) &
+          grepl(filtro, toupper(nomes), fixed = TRUE)
+      ]
+
+      catalogo <- bind_rows(
+        catalogo,
+        data.frame(
+          tipo = tipo,
+          competencia = paste0("20", aamm),
+          arquivo = selecionados,
+          url = paste0(url_ftp, selecionados)
+        )
+      )
+    }
+  }
+
+  catalogo
+}
+
+baixar_dbc <- function(catalogo, diretorio) {
+  # Baixa todos os itens do catálogo.
+  catalogo$destino <- file.path(
+    diretorio,
+    catalogo$arquivo
+  )
+
+  for (i in seq_len(nrow(catalogo))) {
+    curl_download(
+      catalogo$url[i],
+      catalogo$destino[i],
+      mode = "wb"
+    )
+  }
+
+  catalogo
+}
+
+ler_concatenar_dbc <- function(catalogo, tipo) {
+  # Lê e concatena um subsistema.
+  selecionados <- catalogo |>
+    filter(.data$tipo == .env$tipo)
+
+  partes <- vector(
+    "list",
+    nrow(selecionados)
+  )
+
+  for (i in seq_len(nrow(selecionados))) {
+    partes[[i]] <- read.dbc(
+      selecionados$destino[i]
+    ) |>
+      mutate(
+        arquivo_origem = selecionados$arquivo[i],
+        competencia_arquivo = selecionados$competencia[i],
+        subsistema_origem = tipo
+      )
+  }
+
+  bind_rows(partes)
+}
+```
+
+
+Aplicação das funções com os mesmos parâmetros da aula:
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+library(read.dbc)
+
+nomes <- listar_dbc_ftp(url_ftp)
+
+catalogo <- filtrar_dbc(
+  nomes,
+  tipos = c("PA", "AM"),
+  uf = "AC",
+  competencias = sprintf("24%02d", 9:11),
+  url_ftp = url_ftp
+)
+
+catalogo <- baixar_dbc(
+  catalogo,
+  diretorio = "dados_modulo_2"
+)
+
+pa <- ler_concatenar_dbc(catalogo, "PA")
+am <- ler_concatenar_dbc(catalogo, "AM")
+```
+
+
+
+#### Limites deste primeiro fluxo
+
+O exemplo foi mantido curto para evidenciar os conceitos. Uma rotina de produção deve acrescentar, em momento posterior:
+
+- verificação do tamanho remoto e local;
+- repetição controlada de downloads interrompidos;
+- registro da data de extração;
+- hashes dos arquivos;
+- tratamento explícito de mudanças de layout;
+- logs de execução;
+- persistência em formato analítico ou banco de dados;
+- controles de privacidade e divulgação.
+
+Esses recursos não foram misturados aos primeiros chunks porque representam robustez operacional, e não o conceito básico de cada etapa da ETL.
+
+------------------------------------------------------------------------
+
+
+
+### Qualidade e validação
+
+
+#### Estrutura após a leitura
+
+As primeiras verificações devem responder se o arquivo foi interpretado como esperado.
+
+
+``` sourceCode
+library(dplyr)
+library(tibble)
+
+tibble(
+  verificacao = c(
+    "linhas",
+    "colunas",
+    "campos esperados presentes"
+  ),
+  resultado = c(
+    as.character(nrow(pa_enriquecido)),
+    as.character(ncol(pa_enriquecido)),
+    as.character(all(dicionario_pa$campo %in% names(pa_enriquecido)))
+  )
+)
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Preservação das linhas na integração
+
+Uma junção muitos-para-um não deve aumentar a quantidade de linhas do PA.
+
+
+``` sourceCode
+library(dplyr)
+library(tibble)
+
+tibble(
+  objeto = c("PA antes da junção", "PA enriquecido"),
+  linhas = c(nrow(pa_analitico), nrow(pa_enriquecido))
+)
+```
+
+
+Mostrar resultado
+
+
+
+Se o segundo total for maior, retorne à verificação de granularidade do `am_cns`.
+
+
+#### Competência de processamento e ocorrência
+
+Alguns sistemas distinguem:
+
+- competência do arquivo ou movimento;
+- competência de realização;
+- data do evento;
+- data de atualização ou disseminação.
+
+Essas datas não devem ser tratadas como equivalentes sem consultar o layout. Nesta aula:
+
+- `competencia_arquivo` veio do nome do DBC;
+- `PA_CMP` e `AP_CMP` vieram do conteúdo dos arquivos;
+- a integração usou os campos internos de competência.
+
+
+``` sourceCode
+library(dplyr)
+
+pa_enriquecido |>
+  count(
+    competencia_arquivo,
+    PA_CMP,
+    name = "registros"
+  )
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Valores ausentes e códigos especiais
+
+Valores como `0`, `9`, `99`, espaços e texto vazio podem representar categorias diferentes de ausência. Consulte o domínio antes de recodificar.
+
+
+``` sourceCode
+library(dplyr)
+
+pa |>
+  count(
+    PA_DOCORIG,
+    sort = TRUE
+  )
+```
+
+
+Mostrar resultado
+
+
+
+
+#### Revisões e arquivos recentes
+
+Competências recentes podem estar incompletas ou sofrer substituição. Registre:
+
+- data do download;
+- endereço da fonte;
+- nome e tamanho do arquivo;
+- competência;
+- versão do dicionário;
+- código utilizado no processamento.
+
+
+#### Privacidade e uso responsável
+
+Mesmo em bases públicas, combinações de variáveis podem aumentar o risco de identificação indireta. O campo `cns_am` deve ser tratado como identificador individual:
+
+- não publique valores linha a linha;
+- não apresente pequenas contagens que permitam reidentificação;
+- use o identificador apenas quando necessário para a finalidade analítica;
+- produza resultados agregados;
+- documente critérios de acesso, tratamento e descarte.
+
+------------------------------------------------------------------------
+
+
+
+### Economia da saúde com dados do SUS
+
+
+#### Produção não é custo
+
+Os campos financeiros do SIA e do SIH são fundamentais para analisar o financiamento registrado nos sistemas, mas não representam necessariamente o custo econômico integral do cuidado.
+
+| Conceito                                      | Exemplo de fonte                     |
+|-----------------------------------------------|--------------------------------------|
+| Quantidade produzida ou aprovada              | SIA e SIH                            |
+| Valor aprovado segundo regras administrativas | SIA e SIH                            |
+| Valor de referência do procedimento           | SIGTAP                               |
+| Preço observado em compras públicas           | BPS                                  |
+| Teto regulatório de medicamento               | CMED/Anvisa                          |
+| Custo apurado pelo prestador                  | sistema de custos                    |
+| Despesa orçamentária                          | sistemas orçamentários e financeiros |
+
+
+#### Aplicações do SIA
+
+O objeto `pa_enriquecido` pode apoiar estudos de:
+
+- volume de procedimentos por estabelecimento e gestor;
+- concentração territorial da oferta;
+- evolução de quantidades e valores aprovados;
+- participação de tipos de financiamento;
+- produção de medicamentos, OPM e procedimentos especializados;
+- número de usuários identificados nas APAC de medicamentos.
+
+Exemplo de valor administrativo aprovado por unidade:
+
+
+``` sourceCode
+library(dplyr)
+
+resumo_competencia |>
+  mutate(
+    valor_por_unidade = if_else(
+      quantidade_aprovada > 0,
+      valor_aprovado / quantidade_aprovada,
+      NA_real_
+    )
+  )
+```
+
+
+Mostrar resultado
+
+
+
+> Esse quociente não deve ser denominado automaticamente custo médio.
+
+
+#### Aplicações do SIH
+
+O mesmo raciocínio de ETL pode ser aplicado aos arquivos RD e SP do SIH. Eles permitem analisar internações, permanência, valores hospitalares e profissionais, utilização de UTI, procedimentos realizados e mortalidade hospitalar registrada.
+
+O exemplo não é repetido nesta aula: mudam o diretório, o prefixo, o layout, a granularidade e as chaves, mas permanecem as etapas de listar, filtrar, baixar, ler, concatenar, tipificar e integrar.
+
+
+#### BPS, CMED e SIGTAP
+
+As três fontes respondem a perguntas diferentes:
+
+- **BPS:** por quanto determinados itens foram adquiridos por instituições?
+- **CMED:** quais limites regulatórios se aplicam aos preços de medicamentos?
+- **SIGTAP:** quais atributos e valores de referência estão associados aos procedimentos do SUS?
+
+Não existe equivalência automática entre código CATMAT, registro sanitário, apresentação farmacêutica e código SIGTAP. Qualquer relacionamento deve ser documentado e validado.
+
+
+#### Papel do CNES
+
+O CNES acrescenta contexto à produção por meio de atributos como localização, gestão, natureza jurídica, leitos, equipamentos, profissionais, serviços e habilitações.
+
+O enriquecimento segue o mesmo princípio usado entre PA e AM:
+
+1.  definir a competência comum;
+2.  identificar a chave CNES;
+3.  reduzir a dimensão para uma linha por CNES e competência;
+4.  verificar a unicidade;
+5.  executar a junção;
+6.  comparar a quantidade de linhas antes e depois.
+
+------------------------------------------------------------------------
+
+
+
+### Exercício integrado
+
+Use `pa_enriquecido` para responder:
+
+- quantos registros foram concatenados em cada competência?
+- quantos estabelecimentos e procedimentos distintos aparecem no PA?
+- quantas autorizações do PA foram encontradas no AM?
+- quantos CNS distintos foram recuperados?
+- quais procedimentos concentraram as maiores quantidades aprovadas?
+- o ranking muda quando se utiliza valor aprovado?
+- quais limitações impedem interpretar `PA_VALAPR` como custo econômico?
+
+Estrutura mínima da resposta:
+
+
+``` sourceCode
+library(dplyr)
+
+resultado <- pa_enriquecido |>
+  group_by(PA_PROC_ID) |>
+  summarise(
+    estabelecimentos = n_distinct(PA_CODUNI),
+    quantidade = sum(PA_QTDAPR, na.rm = TRUE),
+    valor = sum(PA_VALAPR, na.rm = TRUE),
+    usuarios_am = n_distinct(cns_am, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  arrange(desc(valor))
+
+head(resultado, 10)
+```
+
+
+Mostrar resultado
+
+
+
+------------------------------------------------------------------------
+
+
+### Síntese
+
+Ao final da ETL, o aluno deve reconhecer a sequência:
+
+``` text
+parâmetros
+  → listagem FTP
+  → filtro de arquivos
+  → download
+  → leitura dos DBC
+  → rastreabilidade
+  → concatenação
+  → aplicação do dicionário
+  → validação das chaves
+  → enriquecimento
+  → indicador agregado
+```
+
+| Conceito                   | Objeto da aula            |
+|----------------------------|---------------------------|
+| Lista remota               | `arquivos_ftp`            |
+| Catálogo filtrado          | `catalogo_ftp`            |
+| Partes lidas               | `partes_pa` e `partes_am` |
+| Bases concatenadas         | `pa` e `am`               |
+| Base tipificada            | `pa_analitico`            |
+| Dimensão de enriquecimento | `am_cns`                  |
+| Produto integrado          | `pa_enriquecido`          |
+| Produto analítico          | `resumo_competencia`      |
+
+O código de uma ETL didática pode ser curto. A interpretação exige layout, dicionário, granularidade, temporalidade, rastreabilidade e distinção entre produção, valor administrativo, preço e custo.
+
+O tratamento de arquivos com dezenas ou centenas de milhões de registros é abordado na **Parte 2 — memória e grandes volumes**.
+
+------------------------------------------------------------------------
+
+Não é possível redirecionar links em HTML/Markdown para abrir o explorador de arquivos nativo do sistema operacional (como Windows Explorer, macOS Finder ou Linux Nautilus) de forma universal. Os navegadores e renderizadores aplicam travas de segurança (*sandboxing*) para impedir que scripts executem chamadas diretas ao sistema de arquivos local ou gerenciem manipuladores de protocolo do sistema.
+
+A abordagem multiplataforma e garantida é exibir a URL FTP completa sanitizada como texto puro na terceira coluna da tabela.
+
+**Mapeamento de Documentos de Apoio (PDF) no FTP do SUS**
+
+- **Mapeamento e Extração Estrita**: Percorrem-se os diretórios de documentação do SUS e extraem-se os nomes dos arquivos PDF utilizando a expressão regular `[a-zA-Z0-9_.-]+\\.[pP][dD][fF]`, isolando o nome do arquivo de metadados como tamanho e horário do FTP.
+- **Codificação de URLs em Texto Puro**: A URL é formada pela concatenação do caminho do servidor com o nome do arquivo, tratada com `URLencode()` para neutralizar espaços e mantida como texto simples (sem marcação de hyperlink `[...](...)`).
+- **Consolidação em Tabela Enxuta**: O catálogo é estruturado em um `data.frame` com três colunas (*Subsistema / Sistema*, *Pasta FTP* e *URL Completa do Arquivo*) e exibido via `knitr::kable()`.
+
+
+``` sourceCode
+library(curl)
+library(dplyr)
+library(knitr)
+
+# 1. Definir a URL base do FTP de disseminação pública
+url_raiz <- "ftp://ftp.datasus.gov.br/dissemin/publicos/"
+
+# 2. Mapear as subpastas de documentação dos subsistemas
+rotas_documentacao <- c(
+  "DOCS/",
+  "SIASUS/200801_/Doc/",
+  "SIHSUS/200801_/Doc/",
+  "CNES/200508_/Doc/",
+  "SIM/DOCS/",
+  "SINASC/DOCS/",
+  "SINAN/DOCS/",
+  "CIHA/201101_/Doc/"
+)
+
+lista_resultados <- list()
+
+# 3. Varrer cada diretório e extrair as URLs completas em texto puro
+for (rota in rotas_documentacao) {
+  url_pasta <- paste0(url_raiz, rota)
+  
+  # Ler o conteúdo bruto do diretório
+  conteudo <- tryCatch({
+    curl_fetch_memory(url_pasta)$content |> rawToChar()
+  }, error = function(e) "")
+  
+  # Isolamento estrito do nome do arquivo PDF
+  pdfs_limpos <- regmatches(
+    conteudo,
+    gregexpr("[a-zA-Z0-9_.-]+\\.[pP][dD][fF]", conteudo)
+  )[[1]] |> 
+    unique()
+  
+  if (length(pdfs_limpos) > 0) {
+    pasta_nome <- gsub("/$", "", rota)
+    
+    # Construir URL completa sanitizada (sem formatação de hyperlink)
+    urls_completas <- paste0(url_pasta, pdfs_limpos)
+    urls_texto_puro <- unname(sapply(urls_completas, URLencode))
+    
+    lista_resultados[[rota]] <- data.frame(
+      pasta_origem = pasta_nome,
+      url_completa = urls_texto_puro,
+      stringsAsFactors = FALSE
+    )
+  }
+}
+
+# 4. Concatenar resultados e classificar subsistemas
+catalogo_docs <- bind_rows(lista_resultados) |>
+  mutate(
+    subsistema = case_when(
+      grepl("SIASUS", pasta_origem, ignore.case = TRUE) ~ "SIA - Sistema de Informações Ambulatoriais",
+      grepl("SIHSUS", pasta_origem, ignore.case = TRUE) ~ "SIH - Sistema de Informações Hospitalares",
+      grepl("CNES", pasta_origem, ignore.case = TRUE)   ~ "CNES - Cadastro Nacional de Estabelecimentos de Saúde",
+      grepl("SIM", pasta_origem, ignore.case = TRUE)    ~ "SIM - Sistema de Informações sobre Mortalidade",
+      grepl("SINASC", pasta_origem, ignore.case = TRUE) ~ "SINASC - Nascidos Vivos",
+      grepl("SINAN", pasta_origem, ignore.case = TRUE)  ~ "SINAN - Agravos de Notificação",
+      grepl("CIHA", pasta_origem, ignore.case = TRUE)   ~ "CIHA - Central de Informações Hospitalares e Ambulatoriais",
+      TRUE                                              ~ "Documentos de Apoio Geral (DOCS)"
+    )
+  ) |>
+  select(subsistema, pasta_origem, url_completa)
+
+# 5. Renderizar a tabela com a URL em formato de texto simples
+knitr::kable(
+  catalogo_docs,
+  col.names = c("Subsistema / Sistema", "Pasta FTP", "URL Completa do Arquivo"),
+  caption = "Documentos de Apoio em PDF Disseminados no FTP do SUS"
+)
+```
+
+
+Mostrar resultado
+
+| Subsistema / Sistema                                       | Pasta FTP           | URL Completa do Arquivo                                                                                |
+|:-----------------------------------------------------------|:--------------------|:-------------------------------------------------------------------------------------------------------|
+| SIA - Sistema de Informações Ambulatoriais                 | SIASUS/200801\_/Doc | <ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Doc/Informe_Tecnico_SIASUS_2019_07.pdf>     |
+| SIH - Sistema de Informações Hospitalares                  | SIHSUS/200801\_/Doc | <ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Doc/IT_SIHSUS_1603.pdf>                     |
+| CNES - Cadastro Nacional de Estabelecimentos de Saúde      | CNES/200508\_/Doc   | <ftp://ftp.datasus.gov.br/dissemin/publicos/CNES/200508_/Doc/IT_CNES_1706.pdf>                         |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/Nota_Tecnica_Intoxicacao_Exogena.pdf>           |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/Nota_Tecnica_Rotavirus.pdf>                     |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/Nota_Tecnica_Surtos_de_DTA.pdf>                 |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/Nota_Tecnica_Toxoplasmose.pdf>                  |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/POP_III_Instalacao_do_tabulador_TabWin_3.pdf>   |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/POP_II_Descompactacao_expansao_conversao_3.pdf> |
+| SINAN - Agravos de Notificação                             | SINAN/DOCS          | <ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DOCS/POP_I_Acesso_a_Microdados_5.pdf>                |
+| CIHA - Central de Informações Hospitalares e Ambulatoriais | CIHA/201101\_/Doc   | <ftp://ftp.datasus.gov.br/dissemin/publicos/CIHA/201101_/Doc/Layout_Arquivos_CIHA.pdf>                 |
+
+Documentos de Apoio em PDF Disseminados no FTP do SUS
+
+
+### Referências
+
+BRASIL. Ministério da Saúde. *Comissão Intergestores Tripartite*. Disponível em: <https://www.gov.br/saude/pt-br/acesso-a-informacao/gestao-do-sus/articulacao-interfederativa/cit>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *Portal de Dados Abertos do SUS*. Disponível em: <https://dadosabertos.saude.gov.br/>. Acesso em: 17 ago. 2026.
+
+BRASIL. Ministério da Saúde. *CNES: Informe Técnico 2017-06*. Brasília, DF: Ministério da Saúde, 2017.
+
+BRASIL. Ministério da Saúde. *Informe Técnico do Sistema de Informações Ambulatoriais do SUS*. Brasília, DF: Ministério da Saúde, 2019.
+
+BRASIL. Ministério da Saúde. *Informe Técnico do Sistema de Informações Hospitalares do SUS*. Brasília, DF: Ministério da Saúde, 2016.
+
+BRASIL. Ministério da Saúde. *Sistema de Informações Ambulatoriais*. Disponível em: <https://www.gov.br/saude/pt-br/composicao/saes/samu-192/sistemas>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Saúde Suplementar. *Dados abertos*. Disponível em: <https://www.gov.br/ans/pt-br/acesso-a-informacao/perfil-do-setor/dados-abertos-1>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Saúde Suplementar. *Quem somos*. Disponível em: <https://www.gov.br/ans/pt-br/acesso-a-informacao/institucional/quem-somos-1>. Acesso em: 17 ago. 2026.
+
+BRASIL. Agência Nacional de Vigilância Sanitária. *Câmara de Regulação do Mercado de Medicamentos*. Disponível em: <https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed>. Acesso em: 17 ago. 2026.
+
+
+
+
+

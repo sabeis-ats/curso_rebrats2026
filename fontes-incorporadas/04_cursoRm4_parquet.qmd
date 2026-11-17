@@ -1,0 +1,1368 @@
+## Microdados do SUS com R para Avaliação Econômica
+
+#### Ecossistema de dados do SUS com R - parte 2: memória, Parquet, DuckDB e grandes volumes
+
+
+Ocultar menu
+
+
+**Objetivo do curso:** Capacitar participantes a extrair, validar, tratar e analisar microdados do SUS com R, integrando fontes de custos/preços e técnicas aplicadas à avaliação econômica.
+
+
+## Ecossistema de dados do SUS com R
+
+
+### Ementa
+
+**Parte A — Fundamentos do processamento de dados massivos**
+
+- Quais são os componentes de um processamento de dados massivos?
+- Onde exatamente o computador trava: RAM, disco ou CPU?
+- Qual a diferença entre `data.frame`, `fread()` e Parquet?
+- O que é, de fato, um arquivo Parquet por dentro?
+- O que é o DuckDB e qual a sua relação com o R e com o Parquet?
+
+**Parte B — Estudo de caso**
+
+- Como extrair Artrite Reumatoide de SP (2023-2024) com menos de 500 MB de RAM?
+
+**Parte C — Uso analítico do produto**
+
+- Como montar uma tabela de pessoas a partir de registros de produção?
+- Como preparar uma tabela usuário × medicamento × competência para Kaplan-Meier?
+- Como preparar a mesma tabela para imputação de valores?
+- Como encapsular toda a extração em uma função parametrizável?
+
+> **Objetivo da aula:** compreender os componentes do processamento de grandes volumes, aplicá-los a uma extração real do SIASUS e transformar o produto em tabelas analíticas.
+
+------------------------------------------------------------------------
+
+
+### Preparar os pacotes
+
+
+``` sourceCode
+install.packages(c(
+  "arrow", "data.table", "DBI", "dplyr", "dbplyr",
+  "duckdb", "lobstr", "curl", "survival", "remotes"
+))
+
+# O read.dbc pode não estar disponível no CRAN para sua versão do R
+remotes::install_github("danicat/read.dbc", upgrade = "never")
+```
+
+
+------------------------------------------------------------------------
+
+
+
+## Parte A — Componentes do processamento de dados massivos
+
+
+### O problema não é o R
+
+Quando um script trava a máquina, a reação comum é culpar a linguagem. Mas o R não é lento nem esbanjador por natureza: ele apenas executa, literalmente, o que foi pedido. `read.dbc("PASP2301.dbc")` pede para materializar um arquivo inteiro na memória, e é exatamente isso que acontece.
+
+Um PA de São Paulo tem cerca de 20 milhões de linhas e 60 colunas. Se cada linha ocupar 300 bytes de texto, são 6 GB só de dados úteis — antes de qualquer cópia intermediária. Nenhuma configuração de pacote resolve isso. O que resolve é mudar **quanto** entra na memória de cada vez.
+
+
+#### Os três recursos em disputa
+
+| Recurso         | Sintoma quando é o gargalo                            | O que o alivia                                  |
+|-----------------|-------------------------------------------------------|-------------------------------------------------|
+| **RAM**         | travamento, *swap*, “cannot allocate vector of size…” | ler em blocos, filtrar cedo, descartar colunas  |
+| **Disco (I/O)** | processo lento com CPU ociosa                         | formato comprimido e colunar, ler menos bytes   |
+| **CPU**         | um núcleo a 100%, os demais parados                   | motor vetorizado, paralelismo, evitar reparsing |
+
+Na prática, com microdados do SUS, o gargalo quase sempre é **RAM** na etapa de extração e **I/O** na etapa de análise. São problemas diferentes e exigem soluções diferentes: a extração pede *streaming*; a análise pede formato colunar.
+
+
+
+### Os seis componentes
+
+Todo pipeline de dados massivos, em qualquer linguagem, é composto pelas mesmas seis decisões. Nomeá-las ajuda a diagnosticar onde um script está falhando.
+
+
+#### 1. Formato de armazenamento: linha ou coluna
+
+Um arquivo **orientado a linha** (CSV, DBF, DBC) guarda os campos de um registro juntos e em sequência. Para ler uma coluna é preciso atravessar todas as outras. Um arquivo **orientado a coluna** (Parquet, ORC) guarda todos os valores de um campo juntos. Para ler uma coluna, lê-se apenas o trecho dela.
+
+``` text
+LINHA (CSV/DBF)                  COLUNA (Parquet)
+┌──────────────────────┐         ┌────────┬────────┬────────┐
+│ cns1 M050 100.00     │         │ cns1   │ M050   │ 100.00 │
+│ cns2 J189  50.00     │         │ cns2   │ J189   │  50.00 │
+│ cns3 M068  75.00     │         │ cns3   │ M068   │  75.00 │
+└──────────────────────┘         └────────┴────────┴────────┘
+ ler PA_VALAPR = ler tudo         ler PA_VALAPR = ler 1 bloco
+```
+
+Em uma base do SIA com 60 colunas, uma consulta que usa 5 colunas lê aproximadamente 8% dos bytes no formato colunar. É a diferença entre 40 segundos e 3 segundos.
+
+
+#### 2. Unidade de trabalho: o bloco (*chunk*) e a partição
+
+Se o dado não cabe na memória, ele precisa ser dividido. Há duas divisões distintas, e confundi-las é um erro frequente:
+
+- **Bloco (*chunk*)**: divisão *durante a leitura*, invisível no resultado. É o que faz o leitor de DBF do estudo de caso processar 50 mil registros por vez. Serve para controlar o pico de RAM.
+- **Partição**: divisão *no armazenamento*, visível como diretórios. É o `ano=2023/mes=01/` do Parquet. Serve para que o motor de consulta possa **pular** arquivos inteiros.
+
+
+#### 3. Momento da materialização: ansioso ou preguiçoso
+
+Execução **ansiosa** (*eager*) calcula cada etapa imediatamente e guarda o resultado. `read.dbc()` seguido de `filter()` cria o objeto completo e depois o reduz — o pico de memória é o objeto completo.
+
+Execução **preguiçosa** (*lazy*) apenas registra a intenção. Nada é calculado até um `collect()`. Isso permite ao motor **reordenar** as operações: se você pediu filtro depois de seleção, ele pode aplicar o filtro primeiro e nem ler o resto.
+
+
+``` sourceCode
+# Ansioso: 6 GB na RAM, depois 3 MB
+pa <- read.dbc("PASP2301.dbc")
+pa <- pa[pa$PA_CIDPRI == "M050", ]
+
+# Preguiçoso: nada na RAM até o collect(), que traz 3 MB
+open_dataset("parquet/") |> filter(PA_CIDPRI == "M050") |> collect()
+```
+
+
+
+#### 4. *Pushdown*: empurrar o trabalho para baixo
+
+É a consequência prática da preguiça. O motor “empurra” partes da consulta para a camada mais próxima do arquivo:
+
+- ***projection pushdown*** (projeção): lê somente as colunas citadas;
+- ***predicate pushdown*** (predicado): lê somente os blocos que podem conter linhas que satisfazem o filtro;
+- ***partition pruning***: nem abre os arquivos das partições descartadas.
+
+O predicado funciona porque o Parquet guarda, no rodapé, o mínimo e o máximo de cada coluna em cada grupo de linhas. Se você filtra `PA_CMP = '202305'` e um grupo tem máximo `202303`, ele é descartado sem ser lido.
+
+
+#### 5. Motor de execução: onde a conta acontece
+
+O R base processa vetores inteiros de uma vez. Motores analíticos modernos (DuckDB, Arrow) usam **execução vetorizada em lotes**: processam 1024 ou 2048 valores por vez, o que cabe no cache do processador e aproveita instruções SIMD. Além disso, esses motores fazem *spilling* — quando uma agregação não cabe na RAM, ela transborda para disco em vez de falhar.
+
+
+#### 6. Idempotência: poder recomeçar
+
+Um processamento de horas **vai** ser interrompido. Sem *checkpoint*, cada interrupção custa todo o trabalho já feito. As duas técnicas do estudo de caso:
+
+- **um arquivo por unidade de trabalho** (uma competência), para que a retomada seja simplesmente “pular o que já existe”;
+- **escrita atômica** (`.part` → `rename`), porque renomear é atômico no sistema de arquivos e um arquivo definitivo nunca fica pela metade.
+
+------------------------------------------------------------------------
+
+
+
+### `data.frame`, `fread()` e Parquet: três coisas diferentes
+
+Esta é a confusão conceitual mais comum do tema, e ela atrapalha o raciocínio sobre desempenho. Os três termos **não são alternativas entre si** — pertencem a categorias distintas:
+
+|                                         | O que é                           | Onde vive | Substitui quem |
+|-----------------------------------------|-----------------------------------|-----------|----------------|
+| `data.frame` / `tibble` / `data.table`  | **estrutura de dados** em memória | RAM       | um ao outro    |
+| `read.csv()` / `fread()` / `read.dbc()` | **função de leitura**             | —         | uma à outra    |
+| CSV / DBF / Parquet                     | **formato de arquivo**            | disco     | um ao outro    |
+
+A frase “usei `fread` em vez de `data.frame`” não tem sentido preciso: `fread()` é o caminho, `data.table` é o destino. E a frase “Parquet é mais rápido que `data.frame`” compara um formato de disco com uma estrutura de RAM.
+
+
+#### O que realmente distingue os três
+
+**`data.frame` (e variantes)** — lista de vetores de mesmo comprimento, tudo em RAM. O `tibble` é um `data.frame` com impressão e subsetting mais previsíveis. O `data.table` é um `data.frame` com indexação, agrupamento otimizado e, sobretudo, **atualização por referência** (`:=`), que evita a cópia integral do objeto a cada modificação. Em R base, `df$x <- y` pode copiar o objeto inteiro; em `data.table`, `dt[, x := y]` não copia.
+
+**`fread()`** — leitor de arquivos delimitados do `data.table`. É rápido porque faz *memory mapping* do arquivo, detecta tipos por amostragem, e usa múltiplas *threads*. Recursos que importam para o SUS:
+
+
+``` sourceCode
+library(data.table)
+
+# Inspecionar o cabeçalho sem ler os dados
+estrutura <- fread("pa_2024.csv", nrows = 0)
+
+# Ler somente o necessário, preservando zeros à esquerda dos códigos
+pa_dt <- fread(
+  "pa_2024.csv",
+  select          = c("PA_CMP", "PA_PROC_ID", "PA_QTDAPR", "PA_VALAPR"),
+  colClasses      = list(character = c("PA_CMP", "PA_PROC_ID")),
+  keepLeadingZeros = TRUE,
+  nThread         = 4
+)
+
+# Atualização por referência: não duplica o objeto
+pa_dt[PA_QTDAPR > 0, valor_unitario := PA_VALAPR / PA_QTDAPR]
+```
+
+
+O limite do `fread()` é estrutural: **o resultado vai inteiro para a RAM**. Ele lê rápido o que couber; não resolve o que não cabe. E ele não lê DBC.
+
+**Parquet** — formato de arquivo colunar, comprimido e autodescritivo. Não é uma estrutura do R; é o que fica no disco. O ganho vem de três frentes: lê menos bytes (compressão), lê menos colunas (colunar), e não precisa reinterpretar texto (os tipos estão gravados).
+
+
+#### Comparação com os mesmos dados
+
+Ordens de grandeza típicas para uma competência de PA/SP com 60 colunas:
+
+| Formato / caminho  | Tamanho em disco | Tempo p/ ler 5 colunas |           RAM no pico |
+|--------------------|-----------------:|-----------------------:|----------------------:|
+| DBC (original)     |          ~180 MB |   — (precisa expandir) |                     — |
+| DBF (expandido)    |            ~6 GB |                  lento | 6 GB com `read.dbc()` |
+| CSV                |            ~5 GB |      lento (reparsing) |   5 GB+ com `fread()` |
+| CSV.gz             |          ~700 MB |       mais lento ainda |                 5 GB+ |
+| **Parquet (zstd)** |      **~250 MB** |             **rápido** |   **só as 5 colunas** |
+
+O CSV comprimido engana: economiza disco, mas **piora** a leitura, porque o gzip não permite acesso aleatório — para ler o fim do arquivo é preciso descomprimir tudo desde o começo. O Parquet comprime **por bloco de coluna**, então cada pedaço é descomprimível de forma independente.
+
+
+#### Quando usar cada um
+
+- **CSV**: intercâmbio com quem não tem ferramenta específica. Formato de saída, nunca de trabalho.
+- **`fread()` + `data.table`**: recortes que cabem na RAM e exigem manipulação intensiva linha a linha.
+- **Parquet**: camada analítica persistente. É onde o dado deve morar depois da extração.
+- **DBC**: fonte bruta, mantida apenas para auditoria e reprocessamento.
+
+------------------------------------------------------------------------
+
+
+
+### Parquet por dentro
+
+Entender a estrutura interna esclarece por que certas consultas voam e outras não.
+
+``` text
+arquivo.parquet
+├── Row Group 1  (ex.: 1.000.000 linhas)
+│   ├── Column Chunk: PA_CMP     → páginas comprimidas + dicionário
+│   ├── Column Chunk: PA_PROC_ID → páginas comprimidas + dicionário
+│   └── Column Chunk: PA_VALAPR  → páginas comprimidas
+├── Row Group 2
+│   └── ...
+└── Footer (rodapé)
+    ├── esquema: nome e tipo de cada coluna
+    └── estatísticas por Row Group: min, max, nº de nulos
+```
+
+Quatro consequências práticas:
+
+**1. O rodapé é lido primeiro.** É por isso que abrir um Parquet de 10 GB é instantâneo: só o rodapé foi lido. `open_dataset()` não lê dados, lê metadados.
+
+**2. As estatísticas permitem pular blocos.** Um filtro por competência descarta grupos de linhas inteiros sem descomprimir nada. Isso funciona melhor quando os dados estão **ordenados** pela coluna do filtro — se cada grupo contém todas as competências, o mínimo e o máximo não excluem nada.
+
+**3. A codificação por dicionário é ideal para dados do SUS.** Uma coluna com 20 milhões de linhas e apenas 300 códigos de procedimento distintos é armazenada como um dicionário de 300 entradas mais 20 milhões de inteiros pequenos. É daí que vem a compressão de 20:1 típica dessas bases.
+
+**4. Os tipos são gravados.** Um CSV não sabe que `PA_CMP` é texto — a cada leitura alguém precisa decidir, e é assim que `"000123"` vira `123`. No Parquet, o tipo está no esquema. Isso elimina uma classe inteira de erros silenciosos em códigos do SUS.
+
+
+#### Particionamento no estilo Hive
+
+O nome do diretório vira coluna:
+
+``` text
+parquet/
+├── ano=2023/
+│   ├── mes=01/part-0.parquet
+│   └── mes=02/part-0.parquet
+└── ano=2024/
+    └── mes=01/part-0.parquet
+```
+
+`WHERE ano = 2024` faz o motor ignorar o diretório de 2023 sem abrir um único arquivo. A regra prática: particione pela coluna que você **sempre** filtra (competência, UF), com partições de 100 MB a 1 GB. Particionar demais cria milhares de arquivos pequenos e o custo de abrir cada um passa a dominar.
+
+
+#### O que o Parquet não faz
+
+- não é editável no lugar — atualizar uma linha exige reescrever o arquivo;
+- não é bom para buscar uma linha específica por chave (isso é trabalho de índice, de banco transacional);
+- não é legível em editor de texto.
+
+------------------------------------------------------------------------
+
+
+
+### DuckDB e sua relação com o R
+
+
+#### O que é
+
+DuckDB é um **banco de dados analítico embutido**. A analogia usual: está para o PostgreSQL como o SQLite está para o MySQL — roda **dentro** do seu processo R, sem servidor, sem porta, sem instalação de serviço. A diferença em relação ao SQLite é o propósito: o SQLite é transacional e orientado a linha; o DuckDB é analítico, colunar e vetorizado.
+
+Quatro características que importam aqui:
+
+1.  **Consulta arquivos diretamente.** `SELECT * FROM 'dados/*.parquet'` funciona sem importar nada. O Parquet é cidadão de primeira classe.
+2.  **Trabalha além da RAM.** Agregações e junções que não cabem na memória transbordam para disco (*spilling*) em vez de falhar — desde que exista um diretório temporário com espaço.
+3.  **SQL analítico completo.** Funções de janela (`lag`, `row_number`, `sum() OVER`), `GROUP BY` complexos, junções grandes. É exatamente o que falta ao backend do Arrow.
+4.  **Zero cópia com Arrow.** Ambos usam o mesmo formato de memória colunar, então passar dados entre eles não custa serialização.
+
+
+#### As três formas de usar no R
+
+**(a) SQL direto via DBI** — controle total, ideal para consultas complexas:
+
+
+``` sourceCode
+library(DBI)
+library(duckdb)
+
+con <- dbConnect(duckdb(), dbdir = ":memory:")
+dbExecute(con, "SET memory_limit = '4GB'")
+dbExecute(con, "SET threads = 4")
+
+dbGetQuery(con, "
+  SELECT PA_CMP, count(*) AS n, sum(PA_VALAPR) AS valor
+  FROM read_parquet('saida/parquet/**/*.parquet', hive_partitioning = true)
+  WHERE ano = 2024
+  GROUP BY 1 ORDER BY 1
+")
+```
+
+
+**(b) `dplyr` traduzido para SQL via `dbplyr`** — mesma sintaxe do tidyverse, execução no motor:
+
+
+``` sourceCode
+library(dplyr)
+
+base <- tbl(con, "read_parquet('saida/parquet/**/*.parquet', hive_partitioning = true)")
+
+base |>
+  filter(ano == 2024) |>
+  group_by(PA_CMP) |>
+  summarise(n = n(), valor = sum(PA_VALAPR, na.rm = TRUE)) |>
+  arrange(PA_CMP) |>
+  collect()
+
+# Para ver o SQL gerado, troque collect() por show_query()
+```
+
+
+**(c) Ponte com o Arrow** — quando parte do trabalho é melhor em cada motor:
+
+
+``` sourceCode
+library(arrow)
+library(dplyr)
+
+open_dataset("saida/parquet") |>
+  filter(PA_QTDAPR > 0) |>       # varredura e filtro no Arrow
+  to_duckdb() |>                 # ponte sem cópia
+  group_by(AP_CNSPCN) |>
+  mutate(ordem = row_number()) |> # função de janela: só o DuckDB faz
+  to_arrow() |>
+  collect()
+```
+
+
+
+#### Arrow ou DuckDB?
+
+Não são concorrentes; são camadas. O **Arrow** é uma especificação de memória colunar mais uma biblioteca que lê e escreve Parquet e varre coleções de arquivos. O **DuckDB** é um motor de consulta que usa esse mesmo formato de memória.
+
+| Situação                                            | Ferramenta                       |
+|-----------------------------------------------------|----------------------------------|
+| Ler, escrever e converter Parquet                   | Arrow                            |
+| Varrer coleção particionada, filtrar, selecionar    | qualquer um                      |
+| Junções grandes entre tabelas                       | DuckDB                           |
+| Funções de janela (`lag`, `row_number`, acumulados) | DuckDB                           |
+| `string_agg`, `list_*`, SQL avançado                | DuckDB                           |
+| Agregação que não cabe na RAM                       | DuckDB (*spilling*)              |
+| Persistir resultado como banco único                | DuckDB (`dbdir = "base.duckdb"`) |
+| Entregar resultado para outra ferramenta            | Arrow → Parquet                  |
+
+Uma regra que funciona bem: **Arrow para mover dados, DuckDB para perguntar coisas a eles.**
+
+
+#### O lugar de cada peça no pipeline
+
+``` text
+repositório FTP do Ministério da Saúde         .dbc            fonte bruta, imutável, auditável
+      │
+      ▼ dbc2dbf + leitura em blocos
+   filtro cedo      (CID, SIGTAP)   descarta 99,9% das linhas na leitura
+      │
+      ▼
+   Parquet particionado             camada analítica, ano=/mes=/uf=
+      │
+      ├──► Arrow      → conversões, amostras, entrega
+      └──► DuckDB     → agregações, junções, janelas, SQL
+                 │
+                 ▼ collect()
+             tibble pequeno         gráficos, modelos, relatório
+```
+
+------------------------------------------------------------------------
+
+
+
+
+## Parte B — Estudo de caso: Artrite Reumatoide em São Paulo (2023-2024)
+
+
+### De onde vêm os CIDs: a tabela de diretrizes (PCDT)
+
+Antes de baixar qualquer arquivo é preciso saber **o que procurar**. Filtrar cedo só é possível se o critério estiver definido antes da extração — e essa é a decisão que determina se o processo vai custar 3 MB ou 6 GB de RAM.
+
+O Ministério da Saúde, por meio da Conitec, publica os Protocolos Clínicos e Diretrizes Terapêuticas (PCDT). A tabela abaixo mapeia cada linha de cuidado aos seus CIDs.
+
+
+``` sourceCode
+library(readr)
+library(dplyr)
+library(knitr)
+
+url_tabela <- paste0("https://raw.githubusercontent.com/LabXiabr/bd_geral/",
+                     "refs/heads/main/td_diretriz_cuidado.csv")
+
+tabela_diretrizes <- read_csv(url_tabela, show_col_types = FALSE)
+
+tabela_diretrizes |>
+  head(20) |>
+  kable(caption = "Primeiras 20 linhas da Tabela de Diretrizes de Cuidado")
+```
+
+
+Os sete CIDs da artrite reumatoide usados adiante (`M050` a `M068`) saem daí — e é esse mesmo vetor que alimenta o parâmetro `cids` da função da Parte C.
+
+
+### O diagnóstico
+
+A primeira versão desta extração consumia **mais de 11 GB de RAM** e travava a máquina. O erro não estava na lógica — estava em três decisões de infraestrutura que o código não tornava explícitas.
+
+| Sintoma                            | Causa                                                                  | Componente violado      |
+|------------------------------------|------------------------------------------------------------------------|-------------------------|
+| Disco raiz lotado (2 GB livres)    | `read.dbc()` expande o DBC em `tempdir()`, que fica em `/tmp`          | unidade de trabalho     |
+| 11 GB de RAM                       | o DBF inteiro é materializado, e `as.character()` **duplica** o objeto | materialização ansiosa  |
+| Consumo crescente ao longo do laço | `bind_rows()` acumulativo mantém todas as competências                 | ponto de materialização |
+
+A correção seguiu os componentes da Parte A:
+
+1.  **Descompactação dirigida**: `dbc2dbf()` explícito, gravando o DBF no HD externo — nunca em `/tmp`.
+2.  **Leitura em blocos**: o DBF é lido em fatias de 50 mil registros. O formato dBase III é de largura fixa, o que permite fatiar por posição sem biblioteca externa.
+3.  **Filtro dentro do bloco**: os CIDs são testados sobre dois vetores do bloco; só as linhas aprovadas viram `data.frame`.
+4.  **Cruzamento invertido**: em vez de carregar o AM inteiro para um `left_join()`, as chaves do PA já filtrado são conhecidas — o AM é varrido em blocos retendo apenas as linhas correspondentes.
+5.  **Escrita incremental com *checkpoint***: uma competência por arquivo, escrita atômica, retomada natural.
+
+Resultado: **pico de RAM abaixo de 500 MB** e um processo que pode ser interrompido e retomado a qualquer momento.
+
+
+### Os componentes reutilizáveis
+
+Estes blocos são usados tanto pelo estudo de caso quanto pela função generalizada da Parte C.
+
+
+#### Leitor de DBF em blocos
+
+O cabeçalho dBase III informa a quantidade de registros, o tamanho do cabeçalho e do registro, e a tabela de campos com nome, tipo e largura. Com isso, cada registro é uma fatia de largura fixa.
+
+
+``` sourceCode
+# Lê o cabeçalho dBase III e devolve a geometria dos campos.
+dbf_header <- function(path) {
+  con <- file(path, "rb"); on.exit(close(con))
+  h     <- readBin(con, "raw", 32L)
+  n_rec <- readBin(h[5:8],   "integer", size = 4, endian = "little")
+  h_len <- readBin(h[9:10],  "integer", size = 2, signed = FALSE, endian = "little")
+  r_len <- readBin(h[11:12], "integer", size = 2, signed = FALSE, endian = "little")
+  nf    <- (h_len - 32L - 1L) %/% 32L
+  fd    <- readBin(con, "raw", nf * 32L)
+  dim(fd) <- c(32L, nf)
+  nomes <- apply(fd[1:11, , drop = FALSE], 2L,
+                 function(x) rawToChar(x[x != as.raw(0)]))
+  lens  <- as.integer(fd[17, ])
+  ini   <- 2L + c(0L, cumsum(lens))[seq_len(nf)]   # +1 do flag de exclusão
+  list(n_rec = n_rec, h_len = h_len, r_len = r_len,
+       nomes = nomes, ini = ini, fim = ini + lens - 1L)
+}
+
+# Percorre o DBF em blocos. Para cada bloco chama FUN(getcol, validos, nomes).
+#   getcol(nome, linhas) -> vetor character já sem espaços
+#   validos              -> linhas não marcadas como excluídas
+dbf_ler_chunks <- function(path, FUN, chunk = 50000L) {
+  hd  <- dbf_header(path)
+  con <- file(path, "rb"); on.exit(close(con))
+  invisible(readBin(con, "raw", hd$h_len))
+  lidos <- 0L
+  while (lidos < hd$n_rec) {
+    n   <- min(chunk, hd$n_rec - lidos)
+    blk <- readBin(con, "raw", n * hd$r_len)
+    if (length(blk) < n * hd$r_len) n <- length(blk) %/% hd$r_len
+    if (n == 0L) break
+    length(blk) <- n * hd$r_len
+    blk[blk == as.raw(0)] <- as.raw(32)            # nulos -> espaço
+    s <- rawToChar(blk); rm(blk)
+    Encoding(s) <- "latin1"                        # 1 byte = 1 caractere
+    base <- (seq_len(n) - 1L) * hd$r_len
+
+    validos <- which(substring(s, base + 1L, base + 1L) != "*")
+
+    getcol <- function(nome, linhas = validos) {
+      j <- match(nome, hd$nomes)
+      if (is.na(j)) return(rep(NA_character_, length(linhas)))
+      b <- base[linhas]
+      x <- substring(s, b + hd$ini[j], b + hd$fim[j])
+      # o AP_CNSPCN traz bytes altos; sem o iconv explícito o trimws (PCRE)
+      # falha com "string de entrada inválida em UTF-8"
+      trimws(iconv(x, from = "latin1", to = "UTF-8", sub = ""))
+    }
+
+    FUN(getcol, validos, hd$nomes)
+    lidos <- lidos + n
+    rm(s); gc(FALSE)
+  }
+  invisible(hd$n_rec)
+}
+```
+
+
+> **Por que o `iconv()` explícito:** o campo `AP_CNSPCN` é ofuscado e contém bytes fora do ASCII. O `trimws()` usa PCRE e tenta converter a cadeia para UTF-8 antes de aplicar a expressão regular. Sem declarar a origem `latin1`, o R falha com `string de entrada inválida em UTF-8`.
+
+
+#### Decodificação do CNS
+
+O CNS do paciente vem ofuscado por uma substituição de caracteres. A tabela abaixo é a mesma dos `sed` tradicionalmente usados na comunidade:
+
+
+``` sourceCode
+converte_cns <- function(x) {
+  de   <- c("{", "}", "~", "\u007f", "\u00c7",
+            "\u00e4", "\u00fc", "\u00e9", "|", "\u00e2")
+  para <- c("0", "9", "8", "7", "6", "5", "4", "3", "2", "1")
+  for (i in seq_along(de)) x <- gsub(de[i], para[i], x, fixed = TRUE)
+  x <- gsub("[^0-9]", "4", x)
+  ifelse(nzchar(x), x, NA_character_)
+}
+
+# Exemplo: "~{Ç" corresponde a 8-0-6
+converte_cns("~{\u00c7")
+```
+
+
+Mostrar resultado
+
+    ## [1] "806"
+
+Os caracteres acentuados estão escritos como escapes Unicode (`\u00c7` para `Ç`) de propósito: assim o script não quebra se o arquivo for salvo com outra codificação — que é exatamente a classe de erro que estamos tratando.
+
+
+#### Download e *checkpoint*
+
+
+``` sourceCode
+# Download atômico: só vira definitivo se completou.
+# A versão ingênua (file.exists && size > 0) aceita para sempre um arquivo
+# truncado por queda de conexão.
+baixar_se_ausente <- function(url, destino) {
+  if (file.exists(destino) && file.size(destino) > 0) return(TRUE)
+  parcial <- paste0(destino, ".part")
+  ok <- try(curl::curl_download(url, parcial, quiet = TRUE), silent = TRUE)
+  if (inherits(ok, "try-error")) {
+    if (file.exists(parcial)) file.remove(parcial)
+    return(FALSE)
+  }
+  file.rename(parcial, destino)
+  TRUE
+}
+
+# .dbc -> .dbf no diretório escolhido (nunca em /tmp)
+preparar_dbf <- function(arq, dir_dbc, dir_tmp, url_ftp) {
+  dest_dbc <- file.path(dir_dbc, arq)
+  if (!baixar_se_ausente(paste0(url_ftp, arq), dest_dbc)) return(NULL)
+  dest_dbf <- file.path(dir_tmp, sub("\\.[dD][bB][cC]$", ".dbf", arq))
+  if (!file.exists(dest_dbf) || file.size(dest_dbf) == 0) {
+    ok <- try(read.dbc::dbc2dbf(dest_dbc, dest_dbf), silent = TRUE)
+    if (inherits(ok, "try-error")) {
+      if (file.exists(dest_dbf)) file.remove(dest_dbf)
+      return(NULL)
+    }
+  }
+  dest_dbf
+}
+```
+
+
+Os três estados possíveis de uma competência são representados por arquivos:
+
+| Estado                                 | Marca no disco                                          |
+|----------------------------------------|---------------------------------------------------------|
+| processada, com registros              | `artrite_SP_2023-01.csv`                                |
+| processada, sem nenhum registro do CID | `artrite_SP_2023-01.csv.vazio`                          |
+| pendente ou interrompida               | nenhum arquivo (ou só um `.part` órfão, que é ignorado) |
+
+
+
+### O laço principal
+
+
+``` sourceCode
+for (ano in anos_alvo) for (mes in meses_alvo) {
+
+  if (ja_processada(ano, mes)) next
+
+  arqs_pa <- listar_partes("PA", ano, mes)
+  if (!length(arqs_pa)) next          # ainda não publicado: não marca nada
+
+  # 1) PA: filtra o CID DENTRO do bloco; só o aprovado vira data.frame
+  buf <- list()
+  for (a in arqs_pa) {
+    dbf <- preparar_dbf(a)
+    dbf_ler_chunks(dbf, function(getcol, validos, nomes) {
+      c1  <- substr(getcol("PA_CIDPRI"), 1, 4)
+      c2  <- substr(getcol("PA_CIDSEC"), 1, 4)
+      hit <- which(c1 %in% cids_artrite | c2 %in% cids_artrite)
+      if (!length(hit)) return(invisible(NULL))
+      linhas <- validos[hit]
+      d <- lapply(nomes, function(nm) getcol(nm, linhas))
+      names(d) <- nomes
+      d$ORIGEM <- a
+      buf[[length(buf) + 1L]] <<- as.data.frame(d, stringsAsFactors = FALSE)
+    }, chunk = CHUNK)
+    unlink(dbf); gc(FALSE)
+  }
+  df_pa <- do.call(rbind, buf); rm(buf)
+
+  # 2) AM: as chaves do PA já são conhecidas -> retém só o que casa
+  chaves <- paste0(df_pa$PA_CMP, "|", df_pa$PA_AUTORIZ)
+  alvo   <- unique(chaves)
+  mapa   <- character(0)
+  for (a in listar_partes("AM", ano, mes)) {
+    dbf <- preparar_dbf(a)
+    dbf_ler_chunks(dbf, function(getcol, validos, nomes) {
+      k   <- paste0(getcol("AP_CMP"), "|", getcol("AP_AUTORIZ"))
+      hit <- which(k %in% alvo)
+      if (!length(hit)) return(invisible(NULL))
+      v <- getcol("AP_CNSPCN", validos[hit]); names(v) <- k[hit]
+      mapa <<- c(mapa, v[!duplicated(names(v))])
+    }, chunk = CHUNK)
+    unlink(dbf); gc(FALSE)
+  }
+  mapa <- mapa[!duplicated(names(mapa))]
+
+  df_pa$AP_CNSPCN <- converte_cns(unname(mapa[chaves]))
+
+  # 3) grava a competência (checkpoint) e descarta da memória
+  gravar_competencia(df_pa, ano, mes)
+  rm(df_pa); gc(FALSE)
+}
+```
+
+
+Repare na inversão do item 2. O `left_join()` convencional exige que **as duas** tabelas estejam na memória. Aqui, a tabela pequena (PA filtrado, algumas centenas de linhas) define o alvo, e a tabela grande (AM, milhões de linhas) é varrida em fluxo. O resultado é idêntico; o custo de memória é outra ordem de grandeza.
+
+> O script completo e testado está no arquivo `artrite_sia_lowmem.R` que acompanha a aula. Os resultados desta execução estão publicados em <https://rpubs.com/labxss/1453156>.
+
+
+### Conferindo o produto
+
+
+``` sourceCode
+library(arrow)
+library(dplyr)
+
+dir_pq <- "/media/ferre/ferre500gb/Downloads/dbc/saida/parquet"
+
+base <- open_dataset(dir_pq)   # lê só o rodapé: instantâneo
+
+# Quantas linhas por competência
+base |>
+  count(PA_CMP) |>
+  arrange(PA_CMP) |>
+  collect()
+
+# Amostra para inspeção visual
+base |>
+  select(PA_CMP, PA_AUTORIZ, AP_CNSPCN, PA_CIDPRI,
+         PA_PROC_ID, PA_QTDAPR, PA_VALAPR) |>
+  head(20) |>
+  collect()
+```
+
+
+Duas verificações que valem mais que o `View()`:
+
+
+``` sourceCode
+library(DBI); library(duckdb)
+con <- dbConnect(duckdb(), dbdir = ":memory:")
+pq  <- "'/media/ferre/ferre500gb/Downloads/dbc/saida/parquet/**/*.parquet'"
+
+# 1. Taxa de recuperação do CNS: abaixo de 90% indica chave errada
+dbGetQuery(con, sprintf("
+  SELECT PA_CMP,
+         count(*) AS linhas,
+         count(AP_CNSPCN) AS com_cns,
+         round(100.0 * count(AP_CNSPCN) / count(*), 1) AS pct
+  FROM read_parquet(%s, hive_partitioning = true)
+  GROUP BY 1 ORDER BY 1", pq))
+
+# 2. Comprimento do CNS decodificado: deve ser 15
+dbGetQuery(con, sprintf("
+  SELECT length(AP_CNSPCN) AS tamanho, count(*) AS n
+  FROM read_parquet(%s, hive_partitioning = true)
+  WHERE AP_CNSPCN IS NOT NULL
+  GROUP BY 1 ORDER BY 2 DESC", pq))
+```
+
+
+Se o comprimento sair irregular, a tabela de tradução está incompleta para aquele ano. Se a taxa de recuperação for baixa, teste a chave apenas por `AP_AUTORIZ` — em alguns anos o `AP_CMP` do AM traz a competência de processamento, não a de atendimento.
+
+------------------------------------------------------------------------
+
+
+
+## Parte C — Do arquivo extraído às tabelas analíticas
+
+O produto da Parte B é um dataset Parquet particionado. Nesta parte ele deixa de ser “um arquivo” e passa a ser uma **base consultável**: todas as consultas rodam no DuckDB, sobre o disco, e só o resultado agregado chega à RAM.
+
+
+### Abrindo a base
+
+
+``` sourceCode
+library(DBI)
+library(duckdb)
+library(dplyr)
+
+dir_pq <- "/media/ferre/ferre500gb/Downloads/dbc/saida/parquet"
+
+con <- dbConnect(duckdb(), dbdir = ":memory:")
+dbExecute(con, "SET memory_limit = '4GB'")
+
+# Uma VIEW sobre os arquivos: nada é copiado para dentro do banco
+dbExecute(con, sprintf("
+  CREATE OR REPLACE VIEW base AS
+  SELECT * FROM read_parquet('%s/**/*.parquet', hive_partitioning = true)
+", dir_pq))
+
+dbGetQuery(con, "SELECT count(*) AS linhas FROM base")
+```
+
+
+> A `VIEW` é apenas uma consulta com nome. Cada vez que `base` é usada, os arquivos são varridos de novo — com *pushdown*. Se a mesma base for consultada muitas vezes, vale materializar com `CREATE TABLE base AS SELECT ...`, que a carrega para dentro do arquivo `.duckdb`.
+
+
+### Exemplo 1 — Tabela distinta de pessoas
+
+O SIA é uma base de **produção**: cada linha é um procedimento, não uma pessoa. Para qualquer análise de coorte é preciso primeiro colapsar as linhas em indivíduos. E aqui o `string_agg(DISTINCT ...)` cumpre um papel duplo: constrói o atributo **e** revela inconsistência, porque um paciente com dois sexos registrados aparece como `F|M`.
+
+
+``` sourceCode
+sql_pessoa <- "
+CREATE OR REPLACE TABLE td_pessoa AS
+SELECT
+  AP_CNSPCN                                              AS cns,
+  string_agg(DISTINCT PA_SEXO,  '|' ORDER BY PA_SEXO)    AS sexo,
+  min(TRY_CAST(nullif(trim(NU_IDADE), '') AS INTEGER))   AS idade_min,
+  string_agg(DISTINCT PA_MUNPCN,'|' ORDER BY PA_MUNPCN)  AS munic_residencia,
+  count(DISTINCT PA_MUNPCN)                              AS n_municipios,
+  count(DISTINCT PA_CMP)                                 AS n_competencias,
+  count(DISTINCT PA_PROC_ID)                             AS n_procedimentos,
+  min(PA_CMP)                                            AS primeira_cmp,
+  max(PA_CMP)                                            AS ultima_cmp,
+  count(*)                                               AS n_registros
+FROM base
+WHERE AP_CNSPCN IS NOT NULL AND trim(AP_CNSPCN) <> ''
+GROUP BY 1
+"
+dbExecute(con, sql_pessoa)
+
+dbGetQuery(con, "SELECT * FROM td_pessoa ORDER BY n_registros DESC LIMIT 10")
+```
+
+
+Três detalhes que fazem diferença:
+
+- **`TRY_CAST` em vez de `CAST`**: se um único registro tiver idade não numérica, o `CAST` derruba a consulta inteira; o `TRY_CAST` devolve `NULL` para aquela linha e segue.
+- **`nullif(trim(x), '')`**: campos do DBF vêm preenchidos com espaços. Sem isso, `''` viraria zero em alguns caminhos de conversão.
+- **`ORDER BY` dentro do agregado**: sem ele, `F|M` e `M|F` seriam valores diferentes para a mesma situação, quebrando qualquer agrupamento posterior.
+
+Se a sua versão do DuckDB reclamar da combinação de `DISTINCT` com `ORDER BY`, a formulação por listas é equivalente e sempre aceita:
+
+
+``` sourceCode
+dbGetQuery(con, "
+  SELECT AP_CNSPCN AS cns,
+         array_to_string(list_sort(list_distinct(list(PA_SEXO))),   '|') AS sexo,
+         array_to_string(list_sort(list_distinct(list(PA_MUNPCN))), '|') AS munic
+  FROM base
+  WHERE AP_CNSPCN IS NOT NULL
+  GROUP BY 1 LIMIT 10
+")
+```
+
+
+#### Auditando a tabela de pessoas
+
+
+``` sourceCode
+dbGetQuery(con, "
+  SELECT
+    count(*)                                        AS pessoas,
+    sum(CASE WHEN sexo LIKE '%|%' THEN 1 ELSE 0 END)         AS sexo_divergente,
+    sum(CASE WHEN n_municipios > 1 THEN 1 ELSE 0 END)        AS mudou_municipio,
+    sum(CASE WHEN idade_min IS NULL THEN 1 ELSE 0 END)       AS sem_idade
+  FROM td_pessoa
+")
+```
+
+
+Sexo divergente costuma indicar erro de digitação no estabelecimento ou reaproveitamento de CNS. Municípios múltiplos podem ser mudança real de residência — informação útil, não necessariamente erro. O tratamento é decisão do estudo; o papel da tabela é **expor** a ambiguidade em vez de escondê-la atrás de um `first()` silencioso.
+
+
+
+### Exemplo 2 — Tabela usuário × medicamento × competência para Kaplan-Meier
+
+A persistência ao tratamento é uma pergunta de sobrevivência: quanto tempo o paciente permanece em uso contínuo até a descontinuação? A base de produção não responde isso diretamente — ela tem dispensações avulsas. É preciso construir **episódios de tratamento**.
+
+
+#### Passo 1: o grão mensal
+
+
+``` sourceCode
+dbExecute(con, "
+CREATE OR REPLACE TABLE td_uso_mensal AS
+SELECT
+  AP_CNSPCN   AS cns,
+  PA_PROC_ID  AS procedimento,
+  PA_CMP      AS competencia,
+  CAST(substr(PA_CMP, 1, 4) AS INTEGER) * 12
+    + CAST(substr(PA_CMP, 5, 2) AS INTEGER)             AS mes_idx,
+  count(*)                                              AS n_registros,
+  sum(TRY_CAST(PA_QTDAPR AS DOUBLE))                    AS qtd_aprovada,
+  sum(TRY_CAST(PA_VALAPR AS DOUBLE))                    AS valor_aprovado
+FROM base
+WHERE AP_CNSPCN IS NOT NULL AND trim(AP_CNSPCN) <> ''
+GROUP BY 1, 2, 3, 4
+")
+```
+
+
+O `mes_idx` transforma a competência `AAAAMM` em um inteiro contínuo (`ano * 12 + mês`). Sem ele, a diferença entre `202301` e `202212` seria 89 em vez de 1. É um detalhe pequeno que invalida silenciosamente análises inteiras.
+
+
+#### Passo 2: quebrar em episódios
+
+Um episódio termina quando há um intervalo maior que a tolerância entre duas dispensações. A tolerância é uma **decisão clínica**, não técnica: para um medicamento de dispensação mensal, 60 dias é comum; para APAC trimestral, seria outro número.
+
+
+``` sourceCode
+tolerancia <- 2   # meses de intervalo aceitos sem quebrar o episódio
+
+dbExecute(con, sprintf("
+CREATE OR REPLACE TABLE td_episodio AS
+WITH marcado AS (
+  SELECT *,
+         mes_idx - lag(mes_idx) OVER (
+           PARTITION BY cns, procedimento ORDER BY mes_idx
+         ) AS intervalo
+  FROM td_uso_mensal
+), quebrado AS (
+  SELECT *,
+         sum(CASE WHEN intervalo IS NULL OR intervalo > %d THEN 1 ELSE 0 END)
+           OVER (PARTITION BY cns, procedimento ORDER BY mes_idx
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS episodio
+  FROM marcado
+)
+SELECT cns, procedimento, episodio,
+       min(competencia)  AS cmp_inicio,
+       max(competencia)  AS cmp_fim,
+       min(mes_idx)      AS ini,
+       max(mes_idx)      AS fim,
+       count(*)          AS meses_com_dispensa,
+       sum(qtd_aprovada) AS qtd_total,
+       sum(valor_aprovado) AS valor_total
+FROM quebrado
+GROUP BY 1, 2, 3
+", tolerancia))
+```
+
+
+A função de janela `lag()` é o motivo pelo qual esta etapa é feita no DuckDB e não no Arrow: o backend do Arrow não implementa janelas com partição e ordenação.
+
+
+#### Passo 3: tempo e evento
+
+
+``` sourceCode
+km <- dbGetQuery(con, sprintf("
+WITH obs AS (SELECT max(mes_idx) AS fim_obs FROM td_uso_mensal)
+SELECT e.cns, e.procedimento, e.episodio,
+       e.cmp_inicio, e.cmp_fim,
+       e.fim - e.ini + 1                                  AS tempo_meses,
+       CASE WHEN e.fim + %d <= o.fim_obs THEN 1 ELSE 0 END AS evento,
+       e.meses_com_dispensa,
+       e.meses_com_dispensa * 1.0 / (e.fim - e.ini + 1)    AS pdc,
+       e.qtd_total, e.valor_total
+FROM td_episodio e CROSS JOIN obs o
+WHERE e.episodio = 1                 -- apenas usuários incidentes
+", tolerancia))
+
+head(km)
+```
+
+
+A codificação do evento é a parte conceitualmente delicada:
+
+- `evento = 1` (**descontinuação observada**): o último mês do episódio ficou distante o suficiente do fim do período para que a ausência seja informativa;
+- `evento = 0` (**censura administrativa**): o episódio ainda estava ativo quando os dados terminaram. Não sabemos se continuou — e é exatamente isso que o Kaplan-Meier trata corretamente.
+
+O `pdc` (*proportion of days covered*, aqui em meses) mede a densidade do episódio: um episódio de 6 meses com 6 dispensações tem `pdc = 1`; com 4 dispensações, `0,67`.
+
+
+#### Passo 4: a curva
+
+
+``` sourceCode
+library(survival)
+
+ajuste <- survfit(Surv(tempo_meses, evento) ~ procedimento, data = km)
+
+plot(ajuste,
+     xlab = "Meses desde a primeira dispensação",
+     ylab = "Probabilidade de permanecer em tratamento",
+     col  = seq_along(ajuste$strata), lwd = 2)
+legend("topright", legend = names(ajuste$strata),
+       col = seq_along(ajuste$strata), lwd = 2, bty = "n", cex = 0.8)
+
+# Mediana de persistência por procedimento
+print(ajuste)
+```
+
+
+> **Cautelas de interpretação.** O SIA registra a competência de **atendimento**, mas retificações podem deslocá-la. Uma dispensação pode cobrir mais de um mês, criando falsos intervalos. APACs de continuidade têm regras próprias de renovação. E a ausência de registro pode significar abandono, óbito, transferência para outro estado ou judicialização — o SIA sozinho não distingue esses desfechos. A curva é um ponto de partida para investigação, não um resultado clínico.
+
+
+
+### Exemplo 3 — A mesma tabela com quantidade aprovada e imputação de valor
+
+Para avaliação econômica, o problema recorrente é o valor zerado ou ausente: procedimentos com financiamento diferente, registros com `PA_VALAPR = 0`, competências sem nenhum valor válido. A estratégia é construir um **preço de referência em cascata** e registrar de onde cada valor veio.
+
+
+``` sourceCode
+dbExecute(con, "
+CREATE OR REPLACE TABLE td_uso_valorado AS
+WITH observado_mes AS (
+  SELECT procedimento, competencia,
+         median(valor_aprovado / qtd_aprovada) AS pu_mes
+  FROM td_uso_mensal
+  WHERE qtd_aprovada > 0 AND valor_aprovado > 0
+  GROUP BY 1, 2
+), observado_proc AS (
+  SELECT procedimento,
+         median(valor_aprovado / qtd_aprovada) AS pu_proc
+  FROM td_uso_mensal
+  WHERE qtd_aprovada > 0 AND valor_aprovado > 0
+  GROUP BY 1
+)
+SELECT u.*,
+       om.pu_mes,
+       op.pu_proc,
+       coalesce(om.pu_mes, op.pu_proc)             AS preco_unitario_ref,
+       CASE
+         WHEN u.valor_aprovado > 0     THEN 'observado'
+         WHEN om.pu_mes  IS NOT NULL   THEN 'mediana_competencia'
+         WHEN op.pu_proc IS NOT NULL   THEN 'mediana_procedimento'
+         ELSE 'sem_preco'
+       END                                          AS origem_valor,
+       CASE
+         WHEN u.valor_aprovado > 0 THEN u.valor_aprovado
+         ELSE u.qtd_aprovada * coalesce(om.pu_mes, op.pu_proc)
+       END                                          AS valor_final
+FROM td_uso_mensal u
+LEFT JOIN observado_mes  om USING (procedimento, competencia)
+LEFT JOIN observado_proc op USING (procedimento)
+")
+
+# Quanto do gasto total é observado e quanto é imputado?
+dbGetQuery(con, "
+  SELECT origem_valor,
+         count(*)          AS registros,
+         sum(valor_final)  AS valor,
+         round(100.0 * sum(valor_final) / sum(sum(valor_final)) OVER (), 1) AS pct
+  FROM td_uso_valorado
+  GROUP BY 1 ORDER BY valor DESC
+")
+```
+
+
+A **mediana** é usada em vez da média porque a distribuição de valor unitário no SIA tem cauda longa: um único registro com quantidade digitada errada (1 em vez de 100) desloca a média e contamina toda a imputação.
+
+Para incorporar uma tabela externa de preços — CMED, BPS ou a própria SIGTAP — basta acrescentar um nível na cascata:
+
+
+``` sourceCode
+# td_preco_ref: procedimento, competencia, preco_externo
+dbExecute(con, "
+  CREATE OR REPLACE TABLE td_preco_ref AS
+  SELECT * FROM read_csv_auto('precos_referencia.csv')
+")
+
+dbGetQuery(con, "
+  SELECT u.cns, u.procedimento, u.competencia, u.qtd_aprovada,
+         coalesce(u.preco_unitario_ref, r.preco_externo) AS pu,
+         CASE WHEN u.origem_valor = 'sem_preco' AND r.preco_externo IS NOT NULL
+              THEN 'tabela_externa' ELSE u.origem_valor END AS origem_valor,
+         coalesce(nullif(u.valor_final, 0),
+                  u.qtd_aprovada * r.preco_externo)      AS valor_final
+  FROM td_uso_valorado u
+  LEFT JOIN td_preco_ref r USING (procedimento, competencia)
+  LIMIT 20
+")
+```
+
+
+Manter a coluna `origem_valor` é o que separa uma imputação defensável de um número inventado: ela permite reportar o resultado com e sem imputação, e testar a sensibilidade.
+
+
+### Exemplo 4 — Encapsulando a extração em uma função
+
+O script da Parte B resolve um caso. A função abaixo resolve a **classe** de casos: qualquer combinação de subsistemas, competências, UFs, CIDs e procedimentos SIGTAP. Todos os parâmetros têm padrão, de modo que `extrair_sia()` sem argumento nenhum executa o estudo de caso.
+
+
+``` sourceCode
+#' Extrai microdados do SIASUS com baixo consumo de memória
+#'
+#' @param subsistemas        Vetor. O primeiro é o principal (dirige o filtro);
+#'                           os demais enriquecem via AP_CMP + AP_AUTORIZ.
+#' @param competencia_inicial,competencia_final  "AAAAMM".
+#' @param uf                 Vetor de siglas; NULL = todas as 27 UFs.
+#' @param cids               Prefixos de CID; NULL = sem filtro de diagnóstico.
+#' @param sigtap             Prefixos de procedimento; "0604" = medicamentos.
+#' @param apenas_listar      TRUE devolve o plano de execução sem baixar nada.
+extrair_sia <- function(
+    subsistemas         = c("PA", "AM"),
+    competencia_inicial = "202301",
+    competencia_final   = "202312",
+    uf                  = "SP",
+    cids                = c("M050", "M051", "M052", "M053",
+                            "M058", "M060", "M068"),
+    sigtap              = NULL,
+    dir_base            = file.path(path.expand("~"), "dados_sia"),
+    colunas_cid         = c("PA_CIDPRI", "PA_CIDSEC"),
+    coluna_sigtap       = "PA_PROC_ID",
+    colunas_extra       = c("AP_CNSPCN", "AP_NUIDADE", "AP_COIDADE"),
+    chunk               = 50000L,
+    decodificar_cns     = TRUE,
+    manter_dbc          = TRUE,
+    manter_dbf          = FALSE,
+    refazer             = FALSE,
+    apenas_listar       = FALSE,
+    url_ftp = paste0("ftp://ftp.datasus.gov.br/dissemin/publicos/",
+                     "SIASUS/200801_/Dados/")) {
+
+  stopifnot(length(subsistemas) >= 1)
+  ufs <- if (is.null(uf)) {
+    c("AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
+      "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO")
+  } else toupper(uf)
+
+  if (is.null(cids) && is.null(sigtap))
+    warning("Sem filtro de CID nem de SIGTAP: o resultado ser\u00e1 a base inteira.",
+            call. = FALSE)
+
+  ## --- diretórios ---------------------------------------------------------
+  dir_dbc  <- file.path(dir_base, "dbc")
+  dir_tmp  <- file.path(dir_base, "tmp")
+  dir_comp <- file.path(dir_base, "saida", "competencias")
+  dir_pq   <- file.path(dir_base, "saida", "parquet")
+  for (d in c(dir_dbc, dir_tmp, dir_comp, dir_pq))
+    dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  Sys.setenv(TMPDIR = dir_tmp, TMP = dir_tmp, TEMP = dir_tmp)
+
+  ## --- grade de competências ---------------------------------------------
+  ini <- as.integer(competencia_inicial); fim <- as.integer(competencia_final)
+  meses <- seq(ini %/% 100 * 12 + ini %% 100, fim %/% 100 * 12 + fim %% 100)
+  grade <- data.frame(
+    ano4 = (meses - 1L) %/% 12L,
+    mes  = (meses - 1L) %%  12L + 1L
+  )
+  grade$ano2 <- grade$ano4 %% 100L
+
+  ## --- filtros por prefixo ------------------------------------------------
+  padrao <- function(v) if (is.null(v)) NULL else
+    paste0("^(", paste(v, collapse = "|"), ")")
+  pad_cid <- padrao(cids); pad_sig <- padrao(sigtap)
+
+  ## --- listagem do FTP (uma vez) ------------------------------------------
+  txt <- rawToChar(curl::curl_fetch_memory(url_ftp)$content)
+  arquivos_ftp <- unique(regmatches(
+    txt, gregexpr("[[:alnum:]_-]+\\.[dD][bB][cC]", txt))[[1]])
+  rm(txt)
+
+  listar_partes <- function(tipo, uf, ano2, mes) {
+    p <- sprintf("^%s%s%02d%02d([A-Z]|_[0-9]+)?\\.DBC$", tipo, uf, ano2, mes)
+    arquivos_ftp[grepl(p, toupper(arquivos_ftp))]
+  }
+
+  ## --- plano de execução --------------------------------------------------
+  plano <- do.call(rbind, lapply(ufs, function(u)
+    cbind(grade, uf = u, stringsAsFactors = FALSE)))
+  plano$arquivos <- vapply(seq_len(nrow(plano)), function(i)
+    length(unlist(lapply(subsistemas, listar_partes,
+                         uf = plano$uf[i], ano2 = plano$ano2[i],
+                         mes = plano$mes[i]))), integer(1))
+
+  if (apenas_listar) {
+    message(sprintf("Plano: %d compet\u00eancias, %d arquivos no FTP.",
+                    nrow(plano), sum(plano$arquivos)))
+    return(invisible(plano))
+  }
+
+  ## --- infraestrutura -----------------------------------------------------
+  baixar <- function(arq) {
+    destino <- file.path(dir_dbc, arq)
+    if (file.exists(destino) && file.size(destino) > 0) return(TRUE)
+    parcial <- paste0(destino, ".part")
+    ok <- try(curl::curl_download(paste0(url_ftp, arq), parcial, quiet = TRUE),
+              silent = TRUE)
+    if (inherits(ok, "try-error")) {
+      if (file.exists(parcial)) file.remove(parcial); return(FALSE)
+    }
+    file.rename(parcial, destino); TRUE
+  }
+  preparar_dbf <- function(arq) {
+    if (!baixar(arq)) return(NULL)
+    dbf <- file.path(dir_tmp, sub("\\.[dD][bB][cC]$", ".dbf", arq))
+    if (!file.exists(dbf) || file.size(dbf) == 0) {
+      ok <- try(read.dbc::dbc2dbf(file.path(dir_dbc, arq), dbf), silent = TRUE)
+      if (inherits(ok, "try-error")) return(NULL)
+    }
+    dbf
+  }
+  tag       <- function(u, a, m) sprintf("%s_%04d-%02d", u, a, m)
+  arq_csv   <- function(u, a, m) file.path(dir_comp, paste0(tag(u,a,m), ".csv"))
+  arq_vazio <- function(u, a, m) paste0(arq_csv(u, a, m), ".vazio")
+
+  ## --- laço principal -----------------------------------------------------
+  resumo <- data.frame()
+  for (i in seq_len(nrow(plano))) {
+    u <- plano$uf[i]; a4 <- plano$ano4[i]; a2 <- plano$ano2[i]; m <- plano$mes[i]
+
+    if (!refazer && (file.exists(arq_csv(u,a4,m)) || file.exists(arq_vazio(u,a4,m)))) {
+      message(sprintf("%s | j\u00e1 processada", tag(u,a4,m))); next
+    }
+    arqs <- listar_partes(subsistemas[1], u, a2, m)
+    if (!length(arqs)) { message(sprintf("%s | sem arquivo no FTP", tag(u,a4,m))); next }
+
+    ## 1) subsistema principal, filtrando dentro do bloco
+    buf <- list(); falhou <- FALSE
+    for (arq in arqs) {
+      dbf <- preparar_dbf(arq)
+      if (is.null(dbf)) { falhou <- TRUE; next }
+      dbf_ler_chunks(dbf, function(getcol, validos, nomes) {
+        manter <- rep(TRUE, length(validos))
+        if (!is.null(pad_cid)) {
+          bate <- rep(FALSE, length(validos))
+          for (cc in intersect(colunas_cid, nomes))
+            bate <- bate | grepl(pad_cid, getcol(cc))
+          manter <- manter & bate
+        }
+        if (!is.null(pad_sig) && coluna_sigtap %in% nomes)
+          manter <- manter & grepl(pad_sig, getcol(coluna_sigtap))
+        hit <- which(manter)
+        if (!length(hit)) return(invisible(NULL))
+        linhas <- validos[hit]
+        d <- lapply(nomes, function(nm) getcol(nm, linhas))
+        names(d) <- nomes
+        d$ORIGEM <- arq
+        buf[[length(buf) + 1L]] <<- as.data.frame(d, stringsAsFactors = FALSE)
+        invisible(NULL)
+      }, chunk = chunk)
+      if (!manter_dbf) unlink(dbf)
+      if (!manter_dbc) unlink(file.path(dir_dbc, arq))
+      gc(FALSE)
+    }
+    if (falhou) { message(sprintf("%s | incompleta, ser\u00e1 refeita", tag(u,a4,m))); next }
+    if (!length(buf)) { file.create(arq_vazio(u,a4,m)); next }
+    df <- do.call(rbind, buf); rm(buf); gc(FALSE)
+
+    ## 2) subsistemas auxiliares, varridos em fluxo pelas chaves conhecidas
+    if (length(subsistemas) > 1 && all(c("PA_CMP","PA_AUTORIZ") %in% names(df))) {
+      chaves <- paste0(df$PA_CMP, "|", df$PA_AUTORIZ)
+      alvo   <- unique(chaves)
+      for (sub in subsistemas[-1]) {
+        acc <- list()
+        for (arq in listar_partes(sub, u, a2, m)) {
+          dbf <- preparar_dbf(arq); if (is.null(dbf)) next
+          dbf_ler_chunks(dbf, function(getcol, validos, nomes) {
+            k <- paste0(getcol("AP_CMP"), "|", getcol("AP_AUTORIZ"))
+            hit <- which(k %in% alvo)
+            if (!length(hit)) return(invisible(NULL))
+            linhas <- validos[hit]
+            d <- list(chave = k[hit])
+            for (nm in intersect(colunas_extra, nomes))
+              d[[nm]] <- getcol(nm, linhas)
+            acc[[length(acc) + 1L]] <<- as.data.frame(d, stringsAsFactors = FALSE)
+            invisible(NULL)
+          }, chunk = chunk)
+          if (!manter_dbf) unlink(dbf)
+          if (!manter_dbc) unlink(file.path(dir_dbc, arq))
+          gc(FALSE)
+        }
+        if (length(acc)) {
+          aux <- do.call(rbind, acc); rm(acc)
+          aux <- aux[!duplicated(aux$chave), , drop = FALSE]
+          idx <- match(chaves, aux$chave)
+          for (nm in setdiff(names(aux), "chave")) df[[nm]] <- aux[[nm]][idx]
+          rm(aux)
+        }
+      }
+      if (decodificar_cns && "AP_CNSPCN" %in% names(df))
+        df$AP_CNSPCN <- converte_cns(df$AP_CNSPCN)
+      if ("AP_NUIDADE" %in% names(df)) df$NU_IDADE <- df$AP_NUIDADE
+    }
+
+    ## 3) gravação atômica: CSV da competência + partição Parquet
+    parcial <- paste0(arq_csv(u,a4,m), ".part")
+    write.table(df, parcial, sep = ",", row.names = FALSE, col.names = TRUE,
+                qmethod = "double", na = "", fileEncoding = "UTF-8")
+    file.rename(parcial, arq_csv(u,a4,m))
+
+    if (requireNamespace("arrow", quietly = TRUE)) {
+      dp <- file.path(dir_pq, paste0("uf=", u),
+                      sprintf("ano=%04d", a4), sprintf("mes=%02d", m))
+      dir.create(dp, showWarnings = FALSE, recursive = TRUE)
+      tmp <- file.path(dp, "part-0.parquet.part")
+      ok <- try(arrow::write_parquet(df, tmp, compression = "zstd"), silent = TRUE)
+      if (!inherits(ok, "try-error"))
+        file.rename(tmp, file.path(dp, "part-0.parquet"))
+    }
+
+    message(sprintf("%s | %d registros", tag(u,a4,m), nrow(df)))
+    resumo <- rbind(resumo, data.frame(uf = u, ano = a4, mes = m,
+                                       registros = nrow(df)))
+    rm(df); gc(FALSE)
+  }
+
+  message(sprintf("Conclu\u00eddo: %d registros em %d compet\u00eancias.",
+                  sum(resumo$registros), nrow(resumo)))
+  invisible(list(resumo = resumo, dir_csv = dir_comp, dir_parquet = dir_pq))
+}
+```
+
+
+#### Usando a função
+
+
+``` sourceCode
+# 1. Sem argumentos: reproduz o estudo de caso (SP, 2023, artrite reumatoide)
+res <- extrair_sia()
+
+# 2. Ensaio: mostra o plano sem baixar nada
+extrair_sia(uf = NULL, apenas_listar = TRUE)
+
+# 3. Todos os medicamentos do componente especializado, 3 UFs, 2024
+extrair_sia(
+  competencia_inicial = "202401",
+  competencia_final   = "202412",
+  uf                  = c("SP", "MG", "RJ"),
+  cids                = NULL,
+  sigtap              = "0604"          # prefixo: grupo de medicamentos
+)
+
+# 4. Doença de Paget no país inteiro, 2020-2024
+extrair_sia(
+  competencia_inicial = "202001",
+  competencia_final   = "202412",
+  uf                  = NULL,
+  cids                = c("M880", "M888")
+)
+
+# 5. Só o PA, sem enriquecimento, filtrando por CID de 3 dígitos
+extrair_sia(subsistemas = "PA", cids = "M05")
+```
+
+
+Note que `cids = "M05"` funciona como prefixo e captura `M050` a `M059`, e `sigtap = "0604"` captura todo o grupo de medicamentos da tabela SIGTAP. Isso vem da construção do padrão como `^(...)`, que é mais flexível do que a comparação exata por `%in%` usada no script original.
+
+------------------------------------------------------------------------
+
+
+
+
+## Síntese
+
+
+### O caminho percorrido
+
+``` text
+repositório FTP do Ministério da Saúde  ──►  leitura em blocos  ──►  filtro no bloco  ──►  Parquet
+   .dbc            (50 mil linhas)         (CID / SIGTAP)      particionado
+                                                                    │
+                             ┌──────────────────────────────────────┤
+                             ▼                                      ▼
+                        td_pessoa                            td_uso_mensal
+                   (uma linha por CNS)                  (CNS × proc × competência)
+                                                                    │
+                                              ┌─────────────────────┴──────────┐
+                                              ▼                                ▼
+                                         td_episodio                    td_uso_valorado
+                                     (Kaplan-Meier)                  (avaliação econômica)
+```
+
+
+### Os componentes, revisitados
+
+| Componente               | Decisão nesta aula                                             | Efeito                                        |
+|--------------------------|----------------------------------------------------------------|-----------------------------------------------|
+| Formato de armazenamento | Parquet colunar, particionado por UF/ano/mês                   | leitura seletiva, compressão ~20:1            |
+| Unidade de trabalho      | bloco de 50 mil registros na leitura; competência na gravação  | pico de RAM \< 500 MB                         |
+| Materialização           | preguiçosa: `collect()` só no resultado                        | RAM recebe agregados, não microdados          |
+| *Pushdown*               | filtro de CID dentro do bloco; predicado e partição no DuckDB  | 99,9% das linhas descartadas antes de existir |
+| Motor de execução        | DuckDB para junções, janelas e agregações                      | `lag()`, `string_agg`, *spilling*             |
+| Idempotência             | um arquivo por competência, escrita atômica `.part` → `rename` | processo retomável, nunca corrompido          |
+
+
+### As três confusões que a aula desfaz
+
+**`data.frame`, `fread()` e Parquet não competem entre si.** São estrutura de memória, função de leitura e formato de arquivo. A pergunta útil não é “qual é mais rápido”, e sim “o que precisa entrar na RAM e quando”.
+
+**Arrow e DuckDB não competem entre si.** Arrow move dados e fala Parquet; DuckDB responde perguntas com SQL completo. Convivem sem cópia, e o pipeline maduro usa os dois.
+
+**`gc()` não resolve problema de memória.** Ele libera o que já não é referenciado. Se o objeto grande ainda existe, `gc()` não faz nada. A solução é nunca criar o objeto grande.
+
+
+### Erros que custam caro e são invisíveis
+
+- **`tempdir()` no disco raiz**: `read.dbc()` expande gigabytes em `/tmp`. Se o `/` estiver cheio, o erro aparece longe da causa.
+- **Códigos convertidos para número**: `"000123"` vira `123` e o `join` falha silenciosamente. Preserve identificadores como texto do início ao fim.
+- **Competência tratada como inteiro**: `202301 - 202212 = 89`. Converta para índice contínuo antes de qualquer cálculo temporal.
+- **`CAST` em vez de `TRY_CAST`**: uma linha ruim derruba a consulta inteira.
+- **Download aceito por `file.exists()`**: um arquivo truncado por queda de conexão é aceito para sempre. Baixe em `.part` e renomeie.
+- **Média em vez de mediana na imputação de preço**: uma quantidade digitada errada contamina toda a série.
+- **`first()` silencioso ao colapsar pessoas**: esconde inconsistência que o `string_agg(DISTINCT ...)` exporia.
+
+
+### Regras práticas
+
+1.  Selecione colunas antes de linhas, e linhas antes de tudo o mais.
+2.  Filtre o mais perto possível do arquivo — idealmente, dentro do bloco de leitura.
+3.  Mantenha o DBC como fonte bruta imutável; o Parquet é a camada analítica.
+4.  Particione pela coluna que você sempre filtra, em pedaços de 100 MB a 1 GB.
+5.  Agregue antes de `collect()`; a RAM recebe resultado, não microdado.
+6.  Torne todo processamento longo retomável desde o primeiro dia.
+7.  Registre a proveniência: arquivo de origem, competência, filtro aplicado, origem do valor imputado.
+8.  Verifique com consultas de qualidade, não com `View()`.
+
+
+### Para a próxima etapa
+
+O produto desta aula — `td_pessoa`, `td_uso_mensal`, `td_episodio` e `td_uso_valorado` — é a matéria-prima da avaliação econômica: coortes definidas, tempo em tratamento estimado e custo por paciente-mês com proveniência declarada. O passo seguinte é a integração com as fontes de preço (CMED, BPS, SIGTAP) e a construção dos modelos de custo-efetividade.
+
+------------------------------------------------------------------------
+
+
+### Referências
+
+- [Informe Técnico do SIASUS — layouts PA, APAC, RAAS e BPA-I](ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/)
+- [Apache Parquet — formato de arquivo](https://parquet.apache.org/docs/file-format/)
+- [Apache Arrow — conjuntos de múltiplos arquivos](https://arrow.apache.org/docs/r/articles/dataset.html)
+- [Apache Arrow — `open_dataset()`](https://arrow.apache.org/docs/r/reference/open_dataset.html)
+- [DuckDB — cliente R](https://duckdb.org/docs/current/clients/r)
+- [DuckDB — leitura de Parquet e `hive_partitioning`](https://duckdb.org/docs/data/parquet/overview)
+- [DuckDB — funções de janela](https://duckdb.org/docs/sql/functions/window_functions)
+- [data.table — documentação de `fread()`](https://rdatatable.gitlab.io/data.table/reference/fread.html)
+- [dplyr — `collect()` e `compute()`](https://dplyr.tidyverse.org/reference/compute.html)
+- [survival — `survfit()` e o estimador de Kaplan-Meier](https://cran.r-project.org/package=survival)
+
+
+
+
+
