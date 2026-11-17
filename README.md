@@ -1,78 +1,144 @@
-# Curso RebrATS 2026 - Dados da SABEIS via FTP utilizando R
+# Curso ReBrATS 2026 — acesso aos dados da SABEIS com R
 
-Material do curso presencial do VII Congresso ReBrATS, em 18 de novembro de
-2026, das 8h às 12h30.
+Material do curso presencial **Dados da SABEIS via FTP utilizando a Linguagem
+R**, ofertado no VII Congresso ReBrATS.
 
-## Produtos
+- **Data:** 18 de novembro de 2026
+- **Horário:** 8h às 12h30
+- **Local:** sala 109
+- **Docentes:** Felipe Ferré e Mariá Pereira
+- **Nível:** intermediário
 
-- `curso_rebrats2026.Rmd`: fonte única da página e da apostila.
-- `docs/index.html`: página estática autocontida, própria para GitHub Pages e
-  para publicação no RPubs.
-- `docs/Curso_REBRATS_2026_SABEIS_R.pdf`: apostila em PDF.
-- `R/`: funções de acesso ao SFTP da SABEIS, seleção da versão correta do
-  SIGTAP e análise do SIA.
-- `data/`: dados sintéticos e tabelas auxiliares pequenas para contingência.
-- `scripts/espelhar_sabeis_sftp.sh`: espelhamento opcional, sem exclusão, para
-  uso na infraestrutura da SABEIS/LabX.
+## Situação do material
 
-## Preparação do participante
+Esta primeira entrega contém a aula-núcleo do curso: acesso, seleção, download,
+leitura e validação dos dados da SABEIS. O conteúdo foi reconstruído a partir do
+[Curso ReBrATS 2025](https://github.com/sabeis-ats/curso_rebrats2025) e atualizado
+para 2026.
 
-Instale R (>= 4.3), RStudio e os pacotes do curso:
+Após a validação desta aula no RStudio, será montada a espinha dorsal do livro.
+Os demais capítulos serão desenvolvidos e revisados em iterações posteriores.
+
+## Arquivo principal
+
+O curso está concentrado em um único arquivo:
+
+- [`curso_rebrats2026.Rmd`](curso_rebrats2026.Rmd)
+
+O documento gera uma página HTML autocontida, com sumário lateral, seções
+numeradas e blocos de código expansíveis.
+
+## Conteúdo da aula
+
+1. apresentação da SABEIS e dos dados abertos do SUS;
+2. preparação do R e diagnóstico do suporte a SFTP;
+3. parâmetros e credenciais de acesso;
+4. listagem dos arquivos disponíveis;
+5. interpretação da gramática dos nomes dos arquivos;
+6. criação do catálogo de coortes;
+7. seleção de uma coorte por quantidade de registros;
+8. download atômico de um arquivo `csv.gz`;
+9. leitura com `data.table::fread()`;
+10. validação da quantidade declarada de registros;
+11. inspeção de colunas, ausências e cardinalidade;
+12. leitura das tabelas auxiliares da SABEIS;
+13. identificação da diretriz e cuidado com a competência do SIGTAP;
+14. cálculo e visualização da demanda aferida;
+15. exercício prático e checklist de reprodução.
+
+## Acesso à SABEIS
+
+O nome oficial do curso preserva a expressão “FTP”, mas o serviço utilizado na
+prática é **SFTP**, com transferência sobre SSH.
+
+| Parâmetro | Valor |
+|:--|:--|
+| Host | `45.231.133.29` |
+| Porta | `7891` |
+| Diretório | `/srv/ftp/dadosabertos/` |
+| URL | `sftp://45.231.133.29:7891/srv/ftp/dadosabertos/` |
+| Usuário | `livre` |
+| Senha | `12345` |
+| Credencial usada pelo `curl` | `livre:12345` |
+
+Essas credenciais são públicas, dummies e mantidas integralmente no material
+para permitir a reprodução da aula.
+
+## Dependências
+
+- R;
+- RStudio;
+- Pandoc, normalmente incluído no RStudio;
+- pacotes R `curl`, `data.table`, `knitr` e `rmarkdown`;
+- biblioteca `libcurl` compilada com suporte ao protocolo SFTP.
+
+Instale os pacotes necessários no console do R:
 
 ```r
-source("R/instalar_pacotes.R")
+pacotes <- c("curl", "data.table", "knitr", "rmarkdown")
+faltantes <- pacotes[!vapply(pacotes, requireNamespace, logical(1), quietly = TRUE)]
+
+if (length(faltantes) > 0) {
+  install.packages(faltantes)
+}
 ```
 
-Defina a senha pública fornecida em sala somente na sessão atual:
+## Compilação no RStudio
+
+1. clone ou baixe este repositório;
+2. abra `curso_rebrats2026.Rmd` no RStudio;
+3. mantenha inicialmente `executar_sftp: false` no cabeçalho YAML;
+4. use **Knit** para testar a geração da página sem acessar o servidor;
+5. altere para `executar_sftp: true` e compile novamente para executar toda a
+   prática.
+
+Também é possível compilar pelo console:
 
 ```r
-Sys.setenv(SABEIS_SFTP_PASSWORD = "senha-informada-em-sala")
+rmarkdown::render(
+  "curso_rebrats2026.Rmd",
+  params = list(
+    executar_sftp = TRUE,
+    limite_registros = 20000
+  )
+)
 ```
 
-O código usa o usuário público `livre` por padrão. A senha não é versionada.
+O parâmetro `limite_registros` controla o tamanho máximo da primeira coorte
+selecionada automaticamente.
 
-## Renderização
+## Resultado esperado
 
-No RStudio, abra `curso_rebrats2026.Rmd` e use **Knit**. Para gerar os dois
-formatos por linha de comando:
+Ao final da aula, o participante deverá ter:
 
-```bash
-Rscript render.R
-```
+- validado o suporte local a SFTP;
+- listado o repositório da SABEIS;
+- convertido os nomes dos arquivos em um catálogo de coortes;
+- selecionado e baixado um arquivo `csv.gz`;
+- preservado códigos e identificadores como texto na primeira leitura;
+- confrontado a quantidade observada com a declarada no nome do arquivo;
+- relacionado a coorte às tabelas auxiliares;
+- produzido uma série mensal de usuários distintos;
+- registrado as limitações da demanda aferida para uso em ATS.
 
-O HTML é autocontido. Nesse fluxo, o PDF requer uma distribuição LaTeX com
-XeLaTeX. Também há uma rota estática, que não executa os blocos R e requer
-Pandoc, Python com `python-docx` e LibreOffice:
+## Estrutura atual do repositório
 
-```bash
-bash scripts/render_static.sh
-```
+| Arquivo | Finalidade |
+|:--|:--|
+| `curso_rebrats2026.Rmd` | Fonte única da aula-núcleo |
+| `README.md` | Apresentação, conteúdo e instruções de execução |
+| `render.R` | Rotina auxiliar de renderização |
+| `LICENSE.md` | Licenças do conteúdo e do código |
+| `.gitignore` | Exclusão de arquivos temporários e dados baixados |
 
-## Publicação
+## Referências principais
 
-Recomendação: publicar `docs/` com GitHub Pages a partir da branch `main`.
-O mesmo `docs/index.html` pode ser enviado ao RPubs como cópia estática.
-
-Em uma cópia local previamente clonada e autenticada como colaborador,
-publique as atualizações com:
-
-```bash
-bash scripts/publicar_github.sh
-```
-
-O script usa `git@github.com:sabeis-ats/curso_rebrats2026.git`, cria o primeiro
-commit se necessário e executa `git push -u origin main` sem `--force`.
-
-## Segurança e privacidade
-
-- O servidor informado no curso usa **SFTP**, apesar do título histórico usar
-  “FTP”.
-- Não inclua senhas no Git.
-- Valide a chave do host antes da primeira conexão.
-- Não publique identificadores individuais. Os exemplos locais usam pessoas
-  sintéticas e os exercícios terminam em resultados agregados.
+- [Curso ReBrATS 2025](https://github.com/sabeis-ats/curso_rebrats2025)
+- [SABEIS — processo de ETL](https://rpubs.com/sabeis/etl)
+- [SABEIS — tabelas auxiliares](https://github.com/sabeis-ats/bd_geral)
+- [DATASUS — informações de saúde](https://datasus.saude.gov.br/informacoes-de-saude-tabnet/)
 
 ## Licença
 
 Conteúdo didático sob [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-Código sob licença MIT. Consulte `LICENSE.md`.
+Código sob licença MIT. Consulte [`LICENSE.md`](LICENSE.md).
