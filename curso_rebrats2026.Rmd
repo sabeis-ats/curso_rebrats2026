@@ -1,0 +1,708 @@
+---
+title: "Dados da SABEIS via FTP utilizando a Linguagem R"
+subtitle: "Curso presencial - VII Congresso ReBrATS 2026"
+author: "Felipe Ferré e Mariá Pereira"
+date: "18 de novembro de 2026"
+lang: pt-BR
+toc-title: "Sumário"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    self_contained: true
+    code_folding: hide
+    theme: null
+    css: assets/curso.css
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    latex_engine: xelatex
+    includes:
+      in_header: assets/header.tex
+urlcolor: sabeisblue
+linkcolor: sabeisdark
+---
+
+::: {.hero}
+![SABEIS - Sala Aberta de Inteligência em Saúde](assets/sabeis_tarja.png){.hero-image}
+:::
+
+<div class="course-meta">
+<div><strong>Data:</strong> 18/11/2026</div>
+<div><strong>Horário:</strong> 8h às 12h30</div>
+<div><strong>Local:</strong> Sala 109</div>
+<div><strong>Formato:</strong> Presencial, nível intermediário</div>
+<div><strong>Docentes:</strong> Felipe Ferré e Mariá Pereira</div>
+<div><strong>Material:</strong> Notebook com R e RStudio</div>
+</div>
+
+<div class="callout">
+<strong>Resultado esperado.</strong> Ao final da manhã, cada participante terá
+listado o repositório da SABEIS, selecionado uma coorte pelo nome do arquivo,
+baixado e validado um <code>csv.gz</code>, enriquecido procedimentos com a
+competência correta do SIGTAP e produzido um resumo mensal de demanda aferida.
+</div>
+
+# Oferta oficial
+
+## Título e descrição
+
+**Dados da SABEIS via FTP utilizando a Linguagem R**
+
+> O curso Dados da SABEIS via FTP utilizando a Linguagem R irá capacitar os participantes a utilizar, de forma prática, os dados da SABEIS como fonte de informação para análises em Avaliação de Tecnologias em Saúde (ATS). Durante a atividade, serão abordadas as etapas de acesso à SABEIS via protocolo FTP, download, organização, leitura e tratamento dos dados utilizando a linguagem R, além de aplicações voltadas à estimativa de demanda aferida em análises de impacto orçamentário de tecnologias em processo de incorporação ao SUS e ao monitoramento pós-incorporação de tecnologias já disponibilizadas no sistema. Ao final do curso, espera-se que os participantes estejam aptos a acessar, manipular e analisar esses dados de forma mais autônoma, ampliando sua utilização na produção de evidências para subsidiar processos de avaliação e tomada de decisão no SUS.
+
+**Observação oficial:** Recomenda-se que os participantes levem notebook para a
+realização das atividades práticas.
+
+Fonte da oferta: [VII Congresso ReBrATS](https://www.even3.com.br/vii-congresso-rebrats-787247/).
+
+## Organização didática das 4h30
+
+| Horário | Duração | Bloco | Produto do participante |
+|:--|--:|:--|:--|
+| 08:00-08:15 | 15 min | Abertura e diagnóstico | Ambiente e objetivo analítico definidos |
+| 08:15-08:35 | 20 min | R mínimo para a prática | Pacotes instalados e projeto aberto |
+| 08:35-09:05 | 30 min | Dados abertos do SUS | Mapa FTP/TabNet/SIA/SIGTAP/SABEIS |
+| 09:05-09:35 | 30 min | ETL e gramática dos arquivos | Nome de arquivo convertido em metadados |
+| 09:35-10:05 | 30 min | Demonstração SFTP | Catálogo de coortes listado e filtrado |
+| 10:05-10:15 | 10 min | Intervalo |  |
+| 10:15-11:00 | 45 min | Prática guiada | Arquivo baixado, lido e validado |
+| 11:00-11:30 | 30 min | Integração semântica e temporal | PCDT, CID, território e SIGTAP associados |
+| 11:30-12:00 | 30 min | Parquet e DuckDB | Consulta sem carregar toda a base na RAM |
+| 12:00-12:20 | 20 min | Demanda aferida e pós-incorporação | Série mensal agregada e ressalvas registradas |
+| 12:20-12:30 | 10 min | Quiz e fechamento | Verificação de aprendizagem |
+
+<div class="callout warning">
+<strong>Precisão terminológica.</strong> O endereço usado pela SABEIS começa com
+<code>sftp://</code>. Trata-se de SFTP, que transfere arquivos sobre SSH. O nome
+do curso preserva “FTP” por continuidade, mas o código e a configuração usam o
+protocolo real.
+</div>
+
+# Preparação do ambiente
+
+## R e RStudio
+
+O curso usa um projeto simples, com funções reutilizáveis em `R/`, dados de
+contingência em `data/` e saídas em `downloads/` e `cache/`.
+
+```{r, eval=FALSE}
+source("R/instalar_pacotes.R")
+
+sessionInfo()
+curl::curl_version()$protocols
+```
+
+O vetor de protocolos precisa conter `sftp`. Se não contiver, o problema está
+na compilação da biblioteca `libcurl`, não no código da aula.
+
+## Credencial e chave do servidor
+
+Use a senha pública fornecida em sala somente na sessão do R:
+
+```{r, eval=FALSE}
+Sys.setenv(
+  SABEIS_SFTP_USER = "livre",
+  SABEIS_SFTP_PASSWORD = "senha-informada-em-sala"
+)
+```
+
+Não salve senha em `Rmd`, script, `.Rhistory` ou Git. Em máquina própria, a
+variável pode ficar em `~/.Renviron`, que também não deve ser versionado.
+
+Antes da primeira conexão, confirme com a equipe do curso a impressão digital
+da chave do host e registre-a em `~/.ssh/known_hosts`.
+
+## Contingência sem rede
+
+O arquivo `data/sia_exemplo_sintetico.csv` permite executar o restante da aula
+sem expor identificadores reais:
+
+```{r, eval=FALSE}
+library(data.table)
+df <- fread("data/sia_exemplo_sintetico.csv", colClasses = "character")
+dim(df)
+head(df)
+```
+
+# Dados abertos do SUS e SABEIS
+
+## O evento antes da tabela
+
+Antes de baixar qualquer arquivo, responda:
+
+1. Qual evento administrativo o registro representa?
+2. Qual é a unidade de análise: procedimento, autorização, usuário ou
+   estabelecimento?
+3. A competência é de atendimento, apresentação ou processamento?
+4. Que população fica fora da base?
+5. Qual marcador oficial permitirá validar a extração?
+
+No SIA, uma linha de produção não equivale automaticamente a uma pessoa. Uma
+pessoa pode gerar várias linhas, e nem todo subconjunto contém identificador
+suficiente para contagem longitudinal.
+
+## Ecossistema mínimo
+
+| Fonte | Função na aula | Cuidado principal |
+|:--|:--|:--|
+| FTP do DATASUS | Fonte oficial dos arquivos de disseminação | DBC, layout e competência variam por sistema |
+| TabNet | Marcador agregado para validação | Não substitui a inspeção dos microdados |
+| SIA | Produção ambulatorial | Diferenciar produção, autorização e usuário |
+| SIGTAP | Semântica e valores tabelados por competência | Nunca usar somente a versão mais recente para fatos históricos |
+| SABEIS | ETL e coortes curadas por PCDT | Ler a gramática e a data de geração do arquivo |
+| `bd_geral` | Dimensões auxiliares | Conferir atualização e domínio da chave |
+
+Fontes de consulta:
+
+- [DATASUS - informações de saúde](https://datasus.saude.gov.br/informacoes-de-saude-tabnet/)
+- [SABEIS - ETL](https://rpubs.com/sabeis/etl)
+- [SABEIS - tabelas auxiliares](https://github.com/sabeis-ats/bd_geral)
+- [Curadoria de Dados SUS](https://github.com/LabXiabr/curadoria_dados_sus)
+- [Acervo versionado LabX](https://dados.labx.ia.br/files/)
+
+## ETL da SABEIS
+
+O percurso didático pode ser lido como um contrato:
+
+| Etapa | Pergunta operacional | Evidência de conclusão |
+|:--|:--|:--|
+| Extração | O arquivo correto chegou inteiro? | Nome, tamanho, data e contagem registrados |
+| Transformação | Tipos, chaves e domínios mantêm o sentido? | Testes de formato e de cardinalidade passam |
+| Carga | O produto pode ser consultado sem repetir todo o trabalho? | CSV compactado, Parquet ou tabela disponível |
+| Curadoria | Outro analista consegue explicar a origem e a versão? | Proveniência, competência e regra documentadas |
+| Validação | O total reproduz um marcador oficial compatível? | Diferença explicada ou dentro do critério definido |
+
+O nome do arquivo da SABEIS já contém parte da proveniência:
+
+```text
+tf_sia_200801_pa_058_fen_subgrupo604.20250907.80541.csv.gz
+|  |   |      |  |   |   |           |        |
+|  |   |      |  |   |   |           |        +-- quantidade de registros
+|  |   |      |  |   |   |           +----------- data de geração
+|  |   |      |  |   |   +----------------------- recorte
+|  |   |      |  |   +--------------------------- sigla do PCDT
+|  |   |      |  +------------------------------- número da diretriz
+|  |   |      +---------------------------------- arquivo SIA
+|  |   +----------------------------------------- competência inicial
+|  +--------------------------------------------- sistema
++------------------------------------------------ tabela fato
+```
+
+# Acesso ao repositório da SABEIS
+
+## Listagem por SFTP
+
+Carregue as funções e liste apenas os arquivos `csv.gz`:
+
+```{r, eval=FALSE}
+source("R/sabeis_sftp.R")
+
+arquivos <- sabeis_listar()
+length(arquivos)
+head(arquivos)
+```
+
+O curso prioriza `curl`, sem instalar Python ou `paramiko`. Isso reduz o número
+de dependências e mantém toda a prática em R. A alternativa com `reticulate` e
+`paramiko` permanece útil quando a instalação local de `libcurl` não oferece
+SFTP.
+
+## Metadados do nome do arquivo
+
+```{r, eval=FALSE}
+catalogo <- sabeis_parse_nome(arquivos)
+
+catalogo[
+  catalogo$nome_valido,
+  c(
+    "sistema", "competencia_inicial", "arquivo_sia", "nu_diretriz",
+    "sg_pcdt", "recorte", "data_geracao", "qt_registro"
+  )
+] |>
+  head()
+```
+
+Selecione um arquivo pequeno o bastante para a aula:
+
+```{r, eval=FALSE}
+candidatos <- sabeis_selecionar(
+  catalogo,
+  sistema = "sia",
+  min_registros = 20000,
+  max_registros = 90000
+)
+
+candidatos <- candidatos[order(candidatos$qt_registro), ]
+head(candidatos[, c("sg_pcdt", "nu_diretriz", "qt_registro", "no_arquivo")])
+```
+
+## Download atômico
+
+```{r, eval=FALSE}
+escolhido <- candidatos[1, ]
+
+caminho <- sabeis_baixar(
+  escolhido$no_arquivo,
+  destino = "downloads"
+)
+
+caminho
+```
+
+O download usa um arquivo temporário com sufixo `.part` e só o renomeia ao
+final. Assim, uma interrupção não deixa um arquivo incompleto com aparência de
+arquivo válido.
+
+## Leitura e validação da contagem
+
+```{r, eval=FALSE}
+df <- sabeis_ler(caminho)
+
+resultado_contagem <- sabeis_validar_contagem(df, escolhido)
+resultado_contagem
+```
+
+Critério de aceite:
+
+- `registros_lidos` deve ser igual a `registros_nome`;
+- as 29 colunas esperadas devem estar presentes no exemplo central;
+- códigos devem permanecer como texto, preservando zeros à esquerda;
+- o arquivo, a data de geração e a quantidade devem constar no relatório.
+
+<div class="callout warning">
+<strong>Erro frequente.</strong> Não converta CNS, código de procedimento, CID,
+CNES ou município para ponto flutuante. Códigos são identificadores textuais,
+mesmo quando contêm somente algarismos.
+</div>
+
+# Prática guiada
+
+## Missão 1 - catálogo de coortes
+
+Em duplas, produza uma tabela com uma linha por arquivo e as colunas:
+
+`no_arquivo`, `sistema`, `competencia_inicial`, `arquivo_sia`, `nu_diretriz`,
+`sg_pcdt`, `recorte`, `data_geracao` e `qt_registro`.
+
+Testes mínimos:
+
+```{r, eval=FALSE}
+stopifnot(all(catalogo$qt_registro[catalogo$nome_valido] > 0))
+stopifnot(all(grepl("^[0-9]{3}$", catalogo$nu_diretriz[catalogo$nome_valido])))
+stopifnot(all(grepl("^[0-9]{6}$", catalogo$competencia_inicial[catalogo$nome_valido])))
+```
+
+## Missão 2 - arquivo íntegro
+
+Baixe um arquivo entre 20 mil e 90 mil registros. Registre:
+
+- tempo de download;
+- tamanho em bytes;
+- número de linhas e colunas;
+- resultado da comparação com a quantidade embutida no nome;
+- cinco variáveis úteis para a pergunta de ATS do grupo.
+
+```{r, eval=FALSE}
+inicio <- Sys.time()
+caminho <- sabeis_baixar(escolhido$no_arquivo)
+fim <- Sys.time()
+
+file.info(caminho)[, c("size", "mtime")]
+difftime(fim, inicio, units = "secs")
+```
+
+## Desafio algorítmico
+
+Escreva `escolher_coorte()` com quatro argumentos:
+
+```{r, eval=FALSE}
+escolher_coorte <- function(
+    catalogo,
+    diretriz = NULL,
+    max_registros = 90000L,
+    estrategia = c("menor", "mais_recente")) {
+  # seu código
+}
+```
+
+Requisitos:
+
+1. ignorar nomes inválidos;
+2. aceitar diretriz como `58`, `"58"` ou `"058"`;
+3. recusar resultado vazio com mensagem informativa;
+4. nunca escolher arquivo acima do limite;
+5. em empate, preferir a geração mais recente;
+6. retornar exatamente uma linha.
+
+Teste fornecido:
+
+```{r, eval=FALSE}
+teste <- data.frame(
+  nome_valido = c(TRUE, TRUE, TRUE, FALSE),
+  nu_diretriz = c("058", "058", "046", NA),
+  qt_registro = c(80541L, 70000L, 71223L, NA),
+  data_geracao = as.Date(c("2025-09-07", "2026-01-02", "2025-11-05", NA)),
+  no_arquivo = c("a", "b", "c", "invalido")
+)
+
+x <- escolher_coorte(teste, diretriz = 58, estrategia = "menor")
+stopifnot(nrow(x) == 1L, x$no_arquivo == "b")
+```
+
+# Enriquecimento semântico
+
+## Diretriz, doença e território
+
+As tabelas auxiliares podem ser lidas diretamente do repositório `bd_geral`:
+
+```{r, eval=FALSE}
+library(data.table)
+
+base_raw <- "https://raw.githubusercontent.com/sabeis-ats/bd_geral/main/"
+
+td_diretriz <- fread(paste0(base_raw, "td_diretriz_cnv.csv"),
+                     colClasses = "character")
+td_doenca <- fread(paste0(base_raw, "td_doenca_cid10.csv"),
+                   colClasses = "character")
+td_municipio <- fread(
+  paste0(base_raw, "municipio_regiao_saude_amazonia_legal_ips.csv"),
+  colClasses = "character"
+)
+```
+
+Não faça uma junção sem testar a cardinalidade. Antes de um `left_join`, conte
+duplicidades na chave da dimensão:
+
+```{r, eval=FALSE}
+td_diretriz[, .N, by = nu_diretriz][N > 1]
+td_doenca[, .N, by = co_cid][N > 1]
+```
+
+Se uma dimensão não for única, o `join` pode multiplicar fatos e inflar
+quantidades ou valores.
+
+## SIGTAP correto para o mês do fato
+
+`td_sigtap.csv` é útil para exploração rápida, mas uma análise histórica exige
+a versão vigente em cada competência. O script `R/consultar_sigtap.R` consulta
+o catálogo versionado, baixa o ZIP oficial espelhado, verifica SHA-256 e lê a
+tabela de procedimentos em largura fixa.
+
+```{r, eval=FALSE}
+source("R/consultar_sigtap.R")
+
+proc <- consultar_sigtap(
+  competencia = 202601,
+  co_procedimento = c("0604380011", "0604380062")
+)
+
+proc[, .(
+  co_procedimento,
+  no_procedimento,
+  vl_sh,
+  vl_sa,
+  vl_sp,
+  dt_competencia
+)]
+```
+
+<div class="callout">
+<strong>Interpretação financeira.</strong> O valor SIGTAP é valor tabelado do
+procedimento na competência. Multiplicar quantidade por SIGTAP produz uma
+medida físico-financeira tabelada. Isso não prova pagamento efetivo nem execução
+orçamentária. Para gasto, concilie com a fonte financeira adequada e documente
+as diferenças de escopo.
+</div>
+
+## Junção temporal
+
+Uma regra simples associa cada fato à competência de sua tabela:
+
+```{r, eval=FALSE}
+library(dplyr)
+
+fato <- fato |>
+  mutate(
+    nu_competencia = sprintf("%06d", as.integer(nu_competencia)),
+    co_procedimento = sprintf("%010.0f", as.numeric(co_procedimento))
+  )
+
+sigtap <- sigtap |>
+  transmute(
+    nu_competencia = dt_competencia,
+    co_procedimento,
+    no_procedimento,
+    valor_tabelado = vl_sh + vl_sa + vl_sp
+  )
+
+fato_enriquecido <- fato |>
+  left_join(sigtap, by = c("nu_competencia", "co_procedimento"))
+```
+
+Teste a proporção sem correspondência e investigue qualquer mudança abrupta:
+
+```{r, eval=FALSE}
+mean(is.na(fato_enriquecido$no_procedimento))
+```
+
+# Big data com Parquet e DuckDB
+
+## Quando sair do `data.frame`
+
+Use `data.table::fread()` para um arquivo compactado que cabe na memória. Use
+Parquet e DuckDB quando precisar combinar muitos arquivos ou consultar somente
+algumas colunas e competências.
+
+```{r, eval=FALSE}
+library(arrow)
+library(data.table)
+
+df <- fread(caminho, colClasses = "character")
+names(df) <- tolower(names(df))
+
+write_dataset(
+  df,
+  path = "cache/sabeis_parquet",
+  format = "parquet",
+  partitioning = "nu_competencia",
+  existing_data_behavior = "overwrite_or_ignore"
+)
+```
+
+Particionar por competência permite eliminar arquivos inteiros durante uma
+consulta temporal. Evite partições com cardinalidade muito alta, como usuário.
+
+## Consulta sem carregar tudo na RAM
+
+```{r, eval=FALSE}
+library(arrow)
+library(DBI)
+library(duckdb)
+
+ds <- open_dataset("cache/sabeis_parquet")
+con <- dbConnect(duckdb())
+duckdb_register_arrow(con, "sia", ds)
+
+resumo <- dbGetQuery(con, "
+  SELECT
+    nu_competencia,
+    co_procedimento,
+    COUNT(DISTINCT nu_usuario) AS usuarios,
+    SUM(CAST(qt_aprovada AS DOUBLE)) AS qt_aprovada
+  FROM sia
+  WHERE nu_competencia BETWEEN '202601' AND '202606'
+  GROUP BY 1, 2
+  ORDER BY 1, 2
+")
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+Princípio de desempenho: filtre competências e selecione colunas antes de
+materializar o resultado em R.
+
+# Demanda aferida e monitoramento
+
+## Série mensal
+
+Nos dados sintéticos, o identificador é `nu_usuario`. Em dados reais, confirme
+qual variável representa a pessoa, sua completude e a regra de proteção.
+
+```{r, eval=FALSE}
+library(data.table)
+source("R/analise_sabeis.R")
+
+df <- fread("data/sia_exemplo_sintetico.csv", colClasses = "character")
+demanda <- resumir_demanda(df, id_usuario = "nu_usuario")
+validar_demanda(demanda)
+```
+
+Visualização:
+
+```{r, eval=FALSE}
+library(ggplot2)
+
+ggplot(demanda, aes(nu_competencia, usuarios, group = co_procedimento,
+                    color = co_procedimento)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  labs(
+    x = "Competência",
+    y = "Usuários distintos",
+    color = "Procedimento",
+    title = "Demanda aferida mensal"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Coorte e persistência
+
+Para estimar persistência, transforme registros mensais em episódios por
+usuário e tecnologia. Defina antes:
+
+- data índice;
+- período de observação;
+- lacuna admissível entre dispensações ou procedimentos;
+- regra para mudança de tecnologia;
+- censura por fim da base;
+- tratamento de identificador ausente ou inconsistente.
+
+Uma contagem mensal de usuários descreve volume. Persistência exige trajetória
+longitudinal e uma regra explícita de continuidade.
+
+## Avaliação de impacto orçamentário
+
+Uma estrutura mínima separa:
+
+\[
+\text{Impacto}_t = \text{população elegível}_t \times
+\text{adoção}_t \times \text{custo incremental por paciente}_t
+\]
+
+A SABEIS ajuda a estimar demanda observada e padrões de uso. Os demais termos
+podem exigir literatura, preço de aquisição, esquema terapêutico, perdas,
+impostos e fonte orçamentária. Registre a perspectiva e o ano monetário.
+
+## Validação contra fonte oficial
+
+Compare grandezas compatíveis:
+
+1. mesmo sistema e tipo de arquivo;
+2. mesma competência;
+3. mesmo território;
+4. mesmo procedimento e filtros;
+5. mesma medida, como quantidade aprovada ou valor aprovado.
+
+```{r, eval=FALSE}
+comparacao <- data.frame(
+  fonte = c("SABEIS", "TabNet"),
+  quantidade = c(80541, 80541)
+)
+
+comparacao$diferenca <- comparacao$quantidade - comparacao$quantidade[2]
+comparacao$diferenca_percentual <-
+  100 * comparacao$diferenca / comparacao$quantidade[2]
+comparacao
+```
+
+Uma diferença não implica erro automaticamente. Pode refletir atualização,
+competência, seleção, reapresentação ou regra de exclusão. A validação termina
+quando a diferença é reproduzida e explicada.
+
+# Quiz de fechamento
+
+## Questões
+
+1. Por que o endereço da SABEIS deve ser chamado tecnicamente de SFTP?
+2. Qual informação do nome do arquivo permite uma primeira verificação de
+   integridade lógica?
+3. Por que códigos como `0604380011` devem ser lidos como texto?
+4. Qual risco existe em unir uma tabela fato a uma dimensão com chave repetida?
+5. Para um fato de janeiro de 2026, qual SIGTAP deve ser usado?
+6. Multiplicar quantidade aprovada pelo valor SIGTAP representa pagamento
+   efetivo?
+7. Quando Parquet e DuckDB trazem vantagem sobre a leitura de um único CSV?
+8. Uma série de usuários distintos por mês mede persistência no tratamento?
+
+## Gabarito
+
+1. Porque a conexão usa SSH e o esquema da URL é `sftp://`.
+2. A quantidade de registros registrada antes de `.csv.gz`.
+3. Para preservar zeros à esquerda e impedir arredondamento ou notação
+   científica.
+4. Multiplicação de linhas e inflação de quantidades ou valores.
+5. A versão correspondente à competência 202601, incluindo eventual revisão
+   registrada para esse mês.
+6. Não. Trata-se de valor tabelado; pagamento e orçamento exigem fonte
+   financeira compatível.
+7. Ao consultar vários arquivos, filtrar poucas competências/colunas ou quando
+   o conjunto não cabe confortavelmente na RAM.
+8. Não. Persistência exige vínculo longitudinal e regra de continuidade.
+
+# Navegador e continuidade operacional
+
+## Navegador FTP/SFTP
+
+O navegador experimental está disponível no
+[arquivo do Google Drive](https://drive.google.com/file/d/1meBhUXT0UHQTbpC0dN2CKAjfZyRihz2w/view?usp=sharing).
+Ele é recurso complementar. A prática central permanece em scripts R
+reproduzíveis.
+
+## Espelho de garantia
+
+O curso não depende do espelho local, mas `scripts/espelhar_sabeis_sftp.sh`
+permite manter uma cópia sem exclusão em `/dados/abertos/sabeis/` na bureta.
+
+```bash
+export SABEIS_SFTP_PASSWORD='senha-fornecida-fora-do-git'
+export SABEIS_MIRROR_DIR='/dados/abertos/sabeis/'
+bash scripts/espelhar_sabeis_sftp.sh
+```
+
+O script requer `lftp`, continua downloads interrompidos e não usa `--delete`.
+Uma evolução futura pode promover os arquivos validados para camadas raw,
+bronze, silver e gold, com catálogo e proveniência.
+
+# Checklist do produto final
+
+## Entrega da dupla
+
+- [ ] pergunta de ATS declarada;
+- [ ] arquivo e PCDT selecionados por regra reprodutível;
+- [ ] download concluído sem `.part` residual;
+- [ ] contagem do nome igual à contagem lida;
+- [ ] chaves mantidas como texto;
+- [ ] competência SIGTAP explícita;
+- [ ] cardinalidade dos `joins` testada;
+- [ ] resultado agregado sem identificador individual;
+- [ ] validação TabNet ou outro marcador registrada;
+- [ ] limitações descritas.
+
+# Referências
+
+## Produção e materiais de base
+
+- Ferré F, Lyrio AO, Carvalho SH, Pantuzza LLN, Santos JBR, Lopes ACF,
+  Bonan LFS. Potential for health monitoring: Exploring SUS outpatient open
+  data. *Saúde em Debate*. 2025;49(spe1):e10004.
+  [DOI](https://doi.org/10.1590/2358-28982025E110004I).
+- Ferré F, Oliveira GLA, Queiroz MJ, Gonçalves F. Sala de Situação aberta com
+  dados administrativos para gestão de Protocolos Clínicos e Diretrizes
+  Terapêuticas de tecnologias providas pelo SUS. *Anais do XX SBCAS*. 2020.
+  [DOI](https://doi.org/10.5753/sbcas.2020.11530).
+- Ferré F. Modelagem e gestão de banco de dados com SQL e integração com o R.
+  In: Aragão ES et al., orgs. *Avaliação de impacto das políticas de saúde: um
+  guia para o SUS*. Brasília: Ministério da Saúde; 2023.
+  [Livro](https://bvsms.saude.gov.br/bvs/publicacoes/avaliacao_impacto_politicas_saude_guia_sus.pdf).
+- Ferré F. Infoestrutura para apoio à decisão estratégica no SUS. In: Santos
+  AO, Lopes LT, orgs. *Coleção Covid-19: Reflexões e futuro*. Brasília: Conass;
+  2021. v. 6, p. 114-135.
+  [Conass](https://www.conass.org.br/biblioteca/volume-6-reflexoes-e-futuro/).
+- Santos JBR et al. Monitoramento pós incorporação no Sistema Único de Saúde:
+  uma análise de Infliximabe, Vedolizumabe e Tofacitinibe para o tratamento da
+  Retocolite Ulcerativa. *Jornal de Assistência Farmacêutica e
+  Farmacoeconomia*. 2024;9(1):44-57.
+  [DOI](https://doi.org/10.22563/2525-7323.2024.v9.n.1.p.44-57).
+
+Os exemplos conceituais também incorporam os materiais autorais “Dados e
+medidas epidemiológicas para análise do impacto orçamentário” (FIPE, 2023) e
+“Ciência de dados, informação e conhecimento em saúde” (Anvisa, 2026), com
+ênfase no percurso dado, coorte, custo e decisão.
+
+## Referências complementares
+
+- Saldanha RF. *Sistemas de Informação em Saúde no Brasil*. Rio de Janeiro:
+  edição do autor; 2026. ISBN 978-65-01-37841-1.
+  [Versão online](https://rfsaldanha.github.io/sis/).
+- Rascati KL. *Introdução à Farmacoeconomia*. Porto Alegre: Artmed; 2010.
+- [Curso ReBrATS 2025](https://github.com/sabeis-ats/curso_rebrats2025).
+- [Prova de conceito SABEIS - painel](https://labxss.shinyapps.io/sabeis_pcdt3/).
+- [Prova de conceito SABEIS - livro](https://bookdown.org/labxss/sabeis_pcdt5/).
+
+<p class="footer-note">Material didático. Confirme versões, competências,
+regras de negócio e restrições de divulgação antes de usar os resultados em uma
+decisão de ATS.</p>

@@ -1,0 +1,16 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.Renviron
+cache/
+downloads/
+*.csv.gz
+*.parquet
+*.duckdb
+*_files/
+curso_rebrats2026.knit.md
+curso_rebrats2026.utf8.md
+tmp/
+__pycache__/
+*.py[cod]
