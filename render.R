@@ -1,25 +1,5 @@
-if (!requireNamespace("rmarkdown", quietly = TRUE)) {
-  stop("Instale rmarkdown: install.packages('rmarkdown')", call. = FALSE)
+if (!requireNamespace("quarto", quietly = TRUE)) {
+  stop("Instale o pacote 'quarto' e o Quarto CLI antes de compilar o livro.")
 }
 
-dir.create("docs", showWarnings = FALSE)
-
-rmarkdown::render(
-  "curso_rebrats2026.Rmd",
-  output_format = "html_document",
-  output_file = "index.html",
-  output_dir = "docs",
-  clean = TRUE,
-  envir = new.env(parent = globalenv())
-)
-
-rmarkdown::render(
-  "curso_rebrats2026.Rmd",
-  output_format = "pdf_document",
-  output_file = "Curso_REBRATS_2026_SABEIS_R.pdf",
-  output_dir = "docs",
-  clean = TRUE,
-  envir = new.env(parent = globalenv())
-)
-
-message("Arquivos gerados em docs/.")
+quarto::quarto_render(input = ".")

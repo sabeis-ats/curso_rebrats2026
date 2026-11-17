@@ -1,0 +1,57 @@
+---
+title: "Dados Abertos do SUS"
+subtitle: "Sistemas de informação, ferramentas e método SABEIS"
+---
+
+**Autor**
+
+Felipe Ferré e colaboradores
+
+**Data da última atualização**
+
+17 de novembro de 2026
+
+# Bem-vindo
+
+Este livro apresenta os principais sistemas de informação e fontes de dados do Sistema Único de Saúde, as ferramentas necessárias para tratá-los e o método da Sala Aberta de Inteligência em Saúde (SABEIS).
+
+O material foi organizado para estudantes, profissionais de saúde, pesquisadores, gestores e equipes de Avaliação de Tecnologias em Saúde que precisam compreender como os eventos são registrados, como os dados são disseminados pelo DEMAS/SEIDIGI/MS e como podem ser transformados em informação reprodutível.
+
+## Estado da edição
+
+Esta é a primeira espinha dorsal navegável da edição 2026. Os 49 capítulos possuem arquivo próprio. O núcleo de R, ecossistema de dados, grandes volumes, Parquet, DuckDB, BPS, ETL do SIA, validação SABEIS e acesso SFTP já incorpora integralmente os materiais didáticos indicados, com seus comandos e resultados. Os demais capítulos permanecem estruturados para desenvolvimento iterativo.
+
+## Percursos de leitura
+
+- **Leitura sequencial:** indicada para quem está iniciando. Parte do SUS como sistema de saúde, avança pelos sistemas de informação e chega às ferramentas e aos métodos.
+- **Consulta por sistema de informação:** indicada para compreender uma fonte específica, seu evento, cobertura, unidade de análise e arquivos.
+- **Consulta metodológica:** indicada para executar aquisição, ETL, validação, armazenamento e análise.
+- **Percurso SABEIS:** indicado para reproduzir o núcleo do curso: inventário, download, transformação, carga, validação, coortes e acesso SFTP.
+
+## Organização dos capítulos
+
+Os capítulos dedicados aos sistemas de informação procuram responder a quatro perguntas:
+
+- Qual evento ou processo é registrado?
+- Qual é a cobertura e a unidade de análise?
+- Como os dados são coletados, processados e disseminados?
+- Que usos, cuidados e limitações devem ser considerados?
+
+Os capítulos técnicos acrescentam cinco controles: origem, competência, versão, contagem e evidência de validação.
+
+## Convenções do livro
+
+- **SUS** é o sistema de saúde.
+- **SIA, SIH, SIM, SINASC, SINAN, SISAB e demais siglas** designam sistemas de informação ou fontes específicas.
+- A disseminação federal atual é atribuída ao **DEMAS/SEIDIGI/MS**.
+- O livro usa “dados abertos do SUS” ou o nome da fonte, evitando a expressão “dados DATASUS”.
+- Endereços com `datasus` no domínio permanecem quando são necessários para acesso ou documentação histórica.
+
+## Recursos complementares
+
+A versão online reúne documentos técnicos, código, consultas SQL, scripts Bash, R e Python, materiais de instalação e listas de verificação. Como normas, sistemas, layouts e canais de disseminação mudam, confira a data de atualização de cada capítulo.
+
+# Como citar
+
+> FERRÉ, Felipe et al. *Dados Abertos do SUS: sistemas de informação, ferramentas e método SABEIS*. Edição online em desenvolvimento, 2026. Disponível em: <https://github.com/sabeis-ats/curso_rebrats2026>. Acesso em: dia mês ano.
+

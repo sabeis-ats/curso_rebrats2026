@@ -1,0 +1,104 @@
+project:
+  type: book
+  output-dir: _book
+
+lang: pt-BR
+bibliography: referencias.bib
+
+book:
+  title: "Dados Abertos do SUS"
+  subtitle: "Sistemas de informação, ferramentas e método SABEIS"
+  author: "Felipe Ferré e colaboradores"
+  date: "17 de novembro de 2026"
+  repo-url: https://github.com/sabeis-ats/curso_rebrats2026
+  repo-actions: [edit, issue]
+  chapters:
+    - index.qmd
+    - part: "Parte I — SUS, informação e decisão"
+      chapters:
+        - capitulos/01-sus-sistema-saude.qmd
+        - capitulos/02-demas-disseminacao.qmd
+        - capitulos/03-iniciativa-sabeis.qmd
+        - capitulos/04-dados-mundo-real-ats.qmd
+    - part: "Parte II — Sistemas de informação e fontes de dados do SUS"
+      chapters:
+        - capitulos/05-sia.qmd
+        - capitulos/06-sih-ciha.qmd
+        - capitulos/07-atencao-primaria-sisab.qmd
+        - capitulos/08-cnes.qmd
+        - capitulos/09-sim.qmd
+        - capitulos/10-sinasc.qmd
+        - capitulos/11-sinan.qmd
+        - capitulos/12-imunizacao.qmd
+        - capitulos/13-esus-notifica.qmd
+        - capitulos/14-sivep.qmd
+        - capitulos/15-esavi.qmd
+        - capitulos/16-bnafar.qmd
+        - capitulos/17-sies.qmd
+        - capitulos/18-sisagua.qmd
+        - capitulos/19-sisvan.qmd
+        - capitulos/20-informacao-economica.qmd
+        - capitulos/21-portais-apis-tabuladores.qmd
+    - part: "Parte III — Informática em saúde, semântica e governança"
+      chapters:
+        - capitulos/22-dado-informacao-conhecimento.qmd
+        - capitulos/23-interoperabilidade.qmd
+        - capitulos/24-classificacoes.qmd
+        - capitulos/25-medicamentos.qmd
+        - capitulos/26-saude-digital-rnds.qmd
+        - capitulos/27-privacidade.qmd
+    - part: "Parte IV — Ferramentas para tratamento de dados"
+      chapters:
+        - capitulos/28-arquitetura-analitica.qmd
+        - capitulos/29-sgbd.qmd
+        - capitulos/30-bash.qmd
+        - capitulos/31-dbc-dbf-dbf2dbc.qmd
+        - capitulos/32-projeto-r.qmd
+        - capitulos/33-python.qmd
+        - capitulos/34-microdatasus.qmd
+        - capitulos/35-parquet-duckdb.qmd
+    - part: "Parte V — Método SABEIS: aquisição, ETL e validação"
+      chapters:
+        - capitulos/36-inventario-arquivos.qmd
+        - capitulos/37-download-verificacao.qmd
+        - capitulos/38-conversao-dbc-dbf-csv.qmd
+        - capitulos/39-carga-postgresql.qmd
+        - capitulos/40-reconciliacao-sia.qmd
+        - capitulos/41-repositorio-sabeis.qmd
+        - capitulos/42-validacao-etl.qmd
+        - capitulos/43-coortes-demanda.qmd
+        - capitulos/44-acesso-sftp-r.qmd
+    - part: "Parte VI — Navegador de Dados do SUS"
+      chapters:
+        - capitulos/45-navegador-catalogo.qmd
+        - capitulos/46-navegador-instalacao.qmd
+    - part: "Parte VII — Aplicações analíticas"
+      chapters:
+        - capitulos/47-impacto-orcamentario.qmd
+        - capitulos/48-utilizacao-medicamentos.qmd
+        - capitulos/49-pos-incorporacao.qmd
+  appendices:
+    - apendices/a-catalogo.qmd
+    - apendices/b-sinan.qmd
+    - apendices/c-glossario.qmd
+    - apendices/d-instalacao.qmd
+    - apendices/e-qualidade.qmd
+    - apendices/f-scripts.qmd
+    - apendices/g-referencias.qmd
+
+format:
+  html:
+    theme: cosmo
+    css: assets/styles.css
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    code-fold: false
+    link-external-newwindow: true
+
+execute:
+  enabled: false
+
+crossref:
+  chapters: true
+
