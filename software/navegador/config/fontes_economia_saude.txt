@@ -1,0 +1,12 @@
+BPS catálogo: https://dadosabertos.saude.gov.br/dataset/bps
+Portal Dados Abertos SUS CKAN API: https://dadosabertos.saude.gov.br/api/3/action
+Portal Dados Abertos SUS CKAN API alternativa: https://ckan-dadosabertos.saude.gov.br/api/3/action
+BPS CSV anual: https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/BPS/csv/{AAAA}_csv.zip
+BPS JSON anual: https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/BPS/json/{AAAA}_json.zip
+BPS API: https://apidadosabertos.saude.gov.br/v1/economia-da-saude/bps
+CMED listas: https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos
+Anvisa arquivos públicos: https://dados.anvisa.gov.br/dados/
+CMED PMVG/PF: https://www.gov.br/resolveuid/009cee8dfb2645aaaf915af3ceba1ae2/@@download/file
+CMED PMC: https://www.gov.br/resolveuid/2785f9a07ed3473f86d19cdbc8e7636e/@@download/file
+OBM: https://portal-obm.saude.gov.br/
+OBM recursos: https://portal-obm.saude.gov.br/panel/crud/list/vmp-resources

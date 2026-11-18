@@ -1,0 +1,4 @@
+Fonte: https://git.conass.org.br/ferre/sigtap/
+Branch: main
+Commit consultado: 745f495716d6e039e338f9860cf7dbc685c89c96
+Arquivos de referência: get_sigtap_psql.ipynb, sigtap_ddl2.sql
