@@ -23,7 +23,7 @@ Os identificadores `FTP_DATASUS`, `datasus_dataset`, `datasus_dictionary` e seme
 
 ## Material incorporado
 
-O pacote analisado e incorporado ao livro é [`rshiny_ftpsus_navegador.zip`](../software/rshiny_ftpsus_navegador.zip), versão 14.
+O pacote analisado e incorporado ao livro é [`rshiny_ftpsus_navegador.zip`](../software/rshiny_ftpsus_navegador.zip), versão 14. O código-fonte também está disponível de forma legível na pasta [`software/navegador/`](../software/navegador/README_CURSO.md).
 
 | Propriedade | Valor |
 |---|---|

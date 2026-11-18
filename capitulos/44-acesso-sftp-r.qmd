@@ -1,29 +1,32 @@
 # Acesso SFTP à SABEIS com R
 
-::: {.callout-note title="Estado editorial"}
-Estrutura inicial. O capítulo será aprofundado e validado nas próximas iterações; os conceitos, comandos e resultados já incorporados permanecem disponíveis nas seções indicadas.
+::: {.callout-note title="Aula executável"}
+O arquivo principal [`curso_rebrats2026.Rmd`](../curso_rebrats2026.Rmd) executa as tabelas e os gráficos mesmo quando o SFTP não responde. A aquisição segue SFTP, espelho HTTPS, cache local e exemplo reprodutível, sempre registrando a rota efetivamente usada.
 :::
 
 ## Objetivos
 
 - Executar de ponta a ponta a aula prática de acesso ao repositório público da SABEIS.
+- Relacionar as coortes à lista completa `td_diretriz_cnv.csv`.
+- Interpretar o dicionário do SIA, a taxonomia do SIGTAP e o enriquecimento de PA por AM, AN, AQ, AR, BI e PS.
+- Gerar gráficos de diretrizes, demanda aferida e pós-incorporação.
 - Registrar fonte, competência, versão, unidade de análise e limitações.
 
 ## Conexão e diagnóstico
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+O serviço da SABEIS usa SFTP com as credenciais públicas `livre:12345`. O Rmd diagnostica a `libcurl`, tenta o SFTP com tempo limitado e segue para as rotas alternativas sem eliminar os objetos necessários às análises.
 
 ## Listagem e catálogo
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+Os nomes dos arquivos são convertidos em catálogo com sistema de informação, competência inicial, tabela do SIA, diretriz, sigla PCDT, recorte, data de geração e número declarado de registros.
 
 ## Download atômico
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+O download usa arquivo temporário `.part`, valida a existência e só então promove o resultado ao nome definitivo. O mesmo controle é aplicado às rotas SFTP e HTTPS.
 
 ## Leitura, validação e demanda
 
-Esta seção organiza os conceitos, decisões metodológicas, exemplos e controles de qualidade que serão desenvolvidos no capítulo.
+Os códigos são lidos como texto, a contagem observada é confrontada com a quantidade declarada no nome do arquivo e os gráficos são produzidos com dados reais, cache ou exemplo determinístico.
 
 ## Material incorporado integralmente
 
@@ -33,10 +36,10 @@ O material abaixo foi incorporado como conteúdo do livro, preservando comandos,
 
 {{< include ../fontes-incorporadas/10_resultados_aula_2025.qmd >}}
 
-## Próxima iteração
+## Arquivos da aula
 
-- confirmar documentos normativos e layouts vigentes;
-- executar exemplos com uma competência de referência;
-- acrescentar controles de qualidade e exercícios;
-- revisar remissões, glossário e referências.
+- [`curso_rebrats2026.Rmd`](../curso_rebrats2026.Rmd): documento principal;
+- [`curso_rebrats_2026.R`](../curso_rebrats_2026.R): funções executáveis;
+- [`dados/td_diretriz_cnv.csv`](../dados/td_diretriz_cnv.csv): lista incorporada de PCDT e diretrizes;
+- [`PUBLICAR_GITHUB_PAGES.md`](../PUBLICAR_GITHUB_PAGES.md): publicação do livro e da aula.
 
