@@ -1,5 +1,5 @@
 
-```{r setup, include=FALSE}
+```r
 knitr::opts_chunk$set(
   echo = TRUE,
   message = FALSE,
@@ -129,7 +129,7 @@ suficiente para seguimento longitudinal. Por isso, “registros”, “procedime
 Execute uma vez no console do R. O bloco não é executado automaticamente durante
 a compilação para não alterar o ambiente sem decisão do usuário.
 
-```{r instalar-pacotes, eval=FALSE}
+```r
 pacotes <- c("curl", "data.table", "ggplot2", "knitr", "rmarkdown")
 faltantes <- pacotes[!vapply(pacotes, requireNamespace, logical(1), quietly = TRUE)]
 
@@ -160,7 +160,7 @@ rmarkdown::render(
 
 #### Diagnóstico de SFTP
 
-```{r diagnostico-sftp}
+```r
 versao_curl <- curl::curl_version()
 
 data.table(
@@ -179,7 +179,7 @@ data.table(
 
 As credenciais abaixo são públicas e integram o ambiente da aula.
 
-```{r credenciais}
+```r
 opcoes_rebrats$sftp
 ```
 
@@ -194,7 +194,7 @@ opcoes_rebrats$sftp
 
 #### Listagem com contingência
 
-```{r listar-arquivos}
+```r
 inventario <- listar_arquivos_sabeis(
   tentar_sftp = isTRUE(params$tentar_sftp)
 )
@@ -227,7 +227,7 @@ tf_sia_202401_pa_058_fen_subgrupo604.20261118.2880.csv.gz
 | `20261118` | data de geração |
 | `2880` | quantidade declarada de registros |
 
-```{r criar-catalogo}
+```r
 catalogo <- interpretar_nome_sabeis(inventario$arquivos)
 
 table(catalogo$nome_valido, useNA = "ifany")
@@ -241,7 +241,7 @@ origem pública no `sabeis-ats/bd_geral`. Ele é a dimensão operacional que lig
 código de três dígitos e a sigla presentes no nome das coortes ao nome da
 diretriz, CID-10, tipo do documento, publicação e URL.
 
-```{r carregar-pcdt}
+```r
 td_diretriz_cnv <- carregar_pcdt()
 
 data.table(
@@ -257,7 +257,7 @@ colunas_pcdt <- intersect(
 head(td_diretriz_cnv[, ..colunas_pcdt], 12)
 ```
 
-```{r grafico-tipos-diretriz, fig.height=5}
+```r
 tipos_diretriz <- td_diretriz_cnv[
   !is.na(sg_tipo) & nzchar(sg_tipo),
   .N,
@@ -276,7 +276,7 @@ ggplot(tipos_diretriz, aes(x = reorder(tipo, N), y = N)) +
   tema_rebrats
 ```
 
-```{r enriquecer-catalogo}
+```r
 catalogo_enriquecido <- enriquecer_catalogo_pcdt(
   catalogo[catalogo$nome_valido, , drop = FALSE],
   td_diretriz_cnv
@@ -294,7 +294,7 @@ head(catalogo_enriquecido[, ..colunas_catalogo], 20)
 
 #### Seleção e download
 
-```{r selecionar-coorte}
+```r
 arquivo_escolhido <- selecionar_coorte(
   catalogo,
   limite_registros = params$limite_registros
@@ -302,7 +302,7 @@ arquivo_escolhido <- selecionar_coorte(
 arquivo_escolhido
 ```
 
-```{r baixar-coorte}
+```r
 resultado_download <- obter_coorte_sabeis(
   nome_arquivo = arquivo_escolhido$no_arquivo,
   tentar_sftp = isTRUE(params$tentar_sftp)
@@ -329,7 +329,7 @@ Os códigos são lidos inicialmente como texto. Isso preserva zeros à esquerda,
 identificadores longos e categorias numéricas que não devem sofrer operações
 aritméticas.
 
-```{r ler-coorte}
+```r
 dados <- ler_csv_sabeis(resultado_download$caminho)
 
 dim(dados)
@@ -338,7 +338,7 @@ head(dados, 8)
 
 #### Contagem declarada e observada
 
-```{r validar-contagem}
+```r
 validacao_contagem <- validar_contagem(
   dados,
   arquivo_escolhido,
@@ -352,12 +352,12 @@ de extração, versão do arquivo e regra de formação da coorte.
 
 #### Perfil e campos essenciais
 
-```{r perfil-dados}
+```r
 perfil <- perfil_dados(dados)
 perfil
 ```
 
-```{r campos-essenciais}
+```r
 campos_esperados <- c(
   "nu_competencia", "nu_cnspcn", "co_procedimento", "qt_aprovada",
   "co_cnes_estabelecimento", "nu_apac"
@@ -383,7 +383,7 @@ sistema de informação.
 
 Comando R solicitado, usando diretamente o endereço FTP:
 
-```{r comando-download-dicionario, eval=FALSE}
+```r
 url_dicionario <- paste0(
   "ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Doc/",
   "Informe_Tecnico_SIASUS_2019_07.pdf"
@@ -403,7 +403,7 @@ valida o cabeçalho `%PDF-` e não interrompe a compilação se o servidor estiv
 indisponível. Para executar o download durante o *Knit*, altere
 `baixar_dicionario: true` no YAML.
 
-```{r baixar-dicionario, eval=isTRUE(params$baixar_dicionario)}
+```r
 status_dicionario <- baixar_dicionario_sia()
 status_dicionario
 ```
@@ -414,7 +414,7 @@ A relação abaixo incorpora a nomenclatura apresentada no processo ETL da
 SABEIS. Os arquivos não são “partes de uma mesma linha”; são tabelas com eventos
 e granularidades próprias, disseminadas por UF e competência.
 
-```{r tabelas-sia}
+```r
 subsistemas_sia <- tabela_subsistemas_sia()
 subsistemas_sia
 ```
@@ -433,7 +433,7 @@ Isto é, PA não “vira” AM ou AQ. O fato de produção de PA recebe um ident
 observado na tabela auxiliar compatível. A operação precisa controlar
 duplicidades antes da atualização.
 
-```{r exemplo-enriquecimento-pa}
+```r
 pa_exemplo <- data.table(
   nu_competencia = "202401",
   sg_uf = "MG",
@@ -494,7 +494,7 @@ O grupo de medicamentos é `06`. Um código publicado sem o zero inicial, por
 exemplo `604380011`, deve ser normalizado para `0604380011` antes de ser
 decomposto.
 
-```{r decompor-sigtap}
+```r
 decompor_codigo_sigtap(c("0604380011", "604380011", "06.04.32.015-9"))
 ```
 
@@ -502,12 +502,12 @@ decompor_codigo_sigtap(c("0604380011", "604380011", "06.04.32.015-9"))
 
 #### Resumo mensal
 
-```{r resumir-demanda}
+```r
 demanda_mensal <- resumir_demanda(dados)
 demanda_mensal
 ```
 
-```{r grafico-demanda}
+```r
 grafico_demanda <- ggplot(
   demanda_mensal,
   aes(x = mes, y = usuarios_distintos)
@@ -536,12 +536,12 @@ recorte de procedimentos e diagnósticos.
 
 #### Avaliação pós-incorporação
 
-```{r resumir-pos-incorporacao}
+```r
 avaliacao_pos <- resumir_pos_incorporacao(dados)
 head(avaliacao_pos, 12)
 ```
 
-```{r grafico-pos-incorporacao, fig.height=6}
+```r
 grafico_pos <- ggplot(
   avaliacao_pos,
   aes(x = mes, y = quantidade_aprovada, color = co_procedimento)
@@ -576,7 +576,7 @@ Escolha uma diretriz e produza uma ficha com:
 8. usuários distintos e quantidade aprovada por mês;
 9. limitações e marcador oficial de validação.
 
-```{r ficha-extracao}
+```r
 ficha <- list(
   diretriz = arquivo_escolhido$nu_diretriz,
   sigla = arquivo_escolhido$sg_pcdt,
@@ -658,6 +658,6 @@ depender do servidor SFTP.
 
 ### Informações da sessão
 
-```{r session-info}
+```r
 sessionInfo()
 ```
