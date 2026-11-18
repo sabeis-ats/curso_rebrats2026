@@ -2,3 +2,7 @@ _book/
 .quarto/
 .Rproj.user/
 *.Rproj.user
+dados_sabeis/
+cache/
+documentacao/*.pdf
+*.part

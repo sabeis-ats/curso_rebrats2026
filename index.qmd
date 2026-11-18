@@ -9,7 +9,7 @@ Felipe Ferré e colaboradores
 
 **Data da última atualização**
 
-17 de novembro de 2026
+18 de novembro de 2026
 
 # Bem-vindo
 
@@ -50,6 +50,10 @@ Os capítulos técnicos acrescentam cinco controles: origem, competência, vers�
 ## Recursos complementares
 
 A versão online reúne documentos técnicos, código, consultas SQL, scripts Bash, R e Python, materiais de instalação e listas de verificação. Como normas, sistemas, layouts e canais de disseminação mudam, confira a data de atualização de cada capítulo.
+
+- [Aula ReBrATS 2026 executada](curso/)
+- [Rmd completo do curso](curso_rebrats2026.Rmd)
+- [Instruções de publicação no GitHub Pages](PUBLICAR_GITHUB_PAGES.md)
 
 # Como citar
 

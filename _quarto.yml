@@ -1,6 +1,12 @@
 project:
   type: book
   output-dir: _book
+  resources:
+    - curso_rebrats2026.Rmd
+    - curso_rebrats_2026.R
+    - PUBLICAR_GITHUB_PAGES.md
+    - dados/td_diretriz_cnv.csv
+    - software/**
 
 lang: pt-BR
 bibliography: referencias.bib
@@ -9,7 +15,8 @@ book:
   title: "Dados Abertos do SUS"
   subtitle: "Sistemas de informação, ferramentas e método SABEIS"
   author: "Felipe Ferré e colaboradores"
-  date: "17 de novembro de 2026"
+  date: "18 de novembro de 2026"
+  site-url: https://sabeis-ats.github.io/curso_rebrats2026/
   repo-url: https://github.com/sabeis-ats/curso_rebrats2026
   repo-actions: [edit, issue]
   chapters:
